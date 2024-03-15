@@ -3,6 +3,7 @@ import sys
 
 ARGS_QUANTITY = 2
 CLIENT_QUANTITY_INDEX = 1
+INDEX_DIFFERENCE = 1
 
 docker_compose = {
     'version': '3.9',
@@ -29,7 +30,7 @@ docker_compose = {
 
 def main():
     if len(sys.argv) > ARGS_QUANTITY:
-        print(f"Only one argument needed. Received {len(sys.argv) - 1} arguments.") #TODO: VER COMO SACO ESE 1 
+        print(f"Only one argument needed. Received {len(sys.argv) - INDEX_DIFFERENCE} arguments.")
         return 1
     
     try:
@@ -39,7 +40,7 @@ def main():
         return 1
     
     for id in range(client_quantity):
-        client = f"client{id+1}"
+        client = f"client{id + INDEX_DIFFERENCE}"
         docker_compose['services'][client] = {
             'container_name': client,
             'image': 'client:latest',
