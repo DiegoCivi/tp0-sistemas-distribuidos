@@ -37,4 +37,8 @@ services:
     image: server:latest
     networks:
     - testing_net
+    volumes:
+    - serverconfig:/config
 version: '3.9'
+volumes:
+  serverconfig:
