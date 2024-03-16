@@ -16,7 +16,7 @@ docker_compose = {
             'environment': [
                 'PYTHONUNBUFFERED=1', 'LOGGING_LEVEL=DEBUG'],
             'networks': ['testing_net'],
-            'volumes': ['serverconfig:/config']
+            'volumes': ['server_config:/config']
         },
     },
     'networks': {
@@ -28,7 +28,8 @@ docker_compose = {
         }
     },
     'volumes': {
-        'serverconfig': None
+        'server_config': None,
+        'client_config': None
     }
 }
 
@@ -51,7 +52,8 @@ def main():
             'entrypoint': '/client',
             'environment': [f'CLI_ID={id+1}', 'CLI_LOG_LEVEL=DEBUG'],
             'networks': ['testing_net'],
-            'depends_on': ['server']
+            'depends_on': ['server'],
+            'volumes': ['client_config:/config']
         }
 
     with open('docker-compose-dev.yaml', 'w') as file:
