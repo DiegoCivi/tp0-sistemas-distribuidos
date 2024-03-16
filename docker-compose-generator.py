@@ -15,7 +15,8 @@ docker_compose = {
             'entrypoint': 'python3 /main.py',
             'environment': [
                 'PYTHONUNBUFFERED=1', 'LOGGING_LEVEL=DEBUG'],
-            'networks': ['testing_net']
+            'networks': ['testing_net'],
+            'volumes': ['serverconfig:/config']
         },
     },
     'networks': {
@@ -25,6 +26,9 @@ docker_compose = {
                 'config': [{'subnet': '172.25.125.0/24'}]
             }
         }
+    },
+    'volumes': {
+        'serverconfig': None
     }
 }
 
