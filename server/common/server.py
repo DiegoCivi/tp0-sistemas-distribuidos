@@ -35,6 +35,7 @@ class Server:
                 continue
 
         self._server_socket.close()
+        logging.info(f'action: server_finished | result: success')
 
     def __handle_client_connection(self, client_sock):
         """
@@ -74,6 +75,6 @@ class Server:
         Handles SIGTERM
 
         By setting self._stop_server to False, the server will continue with the iteration
-        it was working, but it will be his last one beefore stopping gracefully. 
+        it was working, but it will be his last one before stopping gracefully. 
         """
         self._stop_server = True
