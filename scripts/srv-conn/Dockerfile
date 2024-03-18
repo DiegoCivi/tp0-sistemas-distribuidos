@@ -7,8 +7,6 @@ COPY netcat-command.py /app/
 
 WORKDIR /app
 
-RUN echo $MSG
-
 RUN apt-get update && apt-get install -y netcat
 
 CMD ["python", "netcat-command.py"]
