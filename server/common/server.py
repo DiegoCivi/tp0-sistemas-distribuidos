@@ -8,6 +8,7 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+
         # A timeout is set for the gracefull stop
         self._server_socket.settimeout(0.7)
 
@@ -34,7 +35,6 @@ class Server:
                 continue
 
         self._server_socket.close()
-        print("termino")
 
     def __handle_client_connection(self, client_sock):
         """
