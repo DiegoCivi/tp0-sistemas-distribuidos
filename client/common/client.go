@@ -2,27 +2,23 @@ package common
 
 import (
 	"bufio"
-	"fmt"
-	"net"
 	"time"
 	"os"
-	"os/signal"
-	"syscall"
-
-	"./communication.go"
+	"reflect"
+	"net"
+	"fmt"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
 
-const EMPTY_ENV = ""
-
 // Contains the info about the clients bet
 type Bet struct {
-	name		string
-	surname		string
-	id			string
-	birth		string
-	number		string
+	Name		string
+	Surname		string
+	Id			string
+	Birth		string
+	Number		string
 }
 
 // ClientConfig Configuration used by the client
@@ -41,7 +37,7 @@ type Client struct {
 }
 
 // Creates a Bet from the env variables
-func createBet() Bet {
+func CreateBet() Bet {
 	//bet := Bet{}
 	//bet_type := reflect.TypeOf(bet)
 	//for i:= 0, i < bet_type.NumField(), i++ {
@@ -53,13 +49,15 @@ func createBet() Bet {
 	//		
 	//	}
 	//}
-	bet = common.Bet{
-		name: os.Getenv("NAME"),
-		surname: os.Getenv("SURNAME"),
-		id: os.Getenv("ID"),
-		birth: os.Getenv("BIRTH"),
-		number: os.Getenv("NUMBER"),
+	log.Infof("[CREATE BET] Se esta por crear la bet")
+	bet := Bet{
+		Name: os.Getenv("NAME"),
+		Surname: os.Getenv("SURNAME"),
+		Id: os.Getenv("ID"),
+		Birth: os.Getenv("BIRTH"),
+		Number: os.Getenv("NUMBER"),
 	}
+	log.Infof("[CREATE BET] Se creo la bet")
 	return bet
 }
 
@@ -77,7 +75,7 @@ func NewClient(config ClientConfig, bet Bet) *Client {
 // failure, error is printed in stdout/stderr and exit 1
 // is returned
 func (c *Client) createClientSocket() error {
-	conn, err = communication.createSocket(c.config.ServerAddress)
+	conn, err := createSocket(c.config.ServerAddress)
 	if err != nil {
 		log.Fatalf(
 	        "action: connect | result: fail | client_id: %v | error: %v",
@@ -90,66 +88,71 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
+func serialize(bet Bet) string {
+	msg := ""
+	v := reflect.ValueOf(bet)
+
+	// Iterate over Bet fields and add them to the message
+	for i := 0; i < v.NumField(); i++ {
+
+		val := v.Field(i).Interface()
+
+		t :=  fmt.Sprintf("%s", val)
+		log.Infof("[SERIALIZE] VALOR: %s", t)
+
+		msg += fmt.Sprintf("%s/", val)
+	}
+
+	msg = strings.TrimSuffix(msg, "/")
+	log.Infof("[SERIALIZE] El mensaje serializado es: %s", msg)
+
+	return msg
+}
+
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	// autoincremental msgID to identify every message sent
-	msgID := 1
-
-	// Channel to receive SIGTERM signal
-	signal_chan := make(chan os.Signal, 1)
-	signal.Notify(signal_chan, syscall.SIGTERM)
-
-loop:
-	// Send messages if the loopLapse threshold has not been surpassed or a SIGTERM has not been received
-	for timeout := time.After(c.config.LoopLapse); ; {
-		select {
-		case <-timeout:
-	        log.Infof("action: timeout_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		case <- signal_chan: // Check if a SIGTERM was received before starting the iteration
-			log.Infof("action: SIGTERM_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		default:
-		}
-
-		// Create the connection the server in every loop iteration. Send an
-		// Skip the rest of the iteration if thee socket was not created  
-		if c.createClientSocket() != nil {
-			continue
-		} 
-
-		// TODO: Modify the send to avoid short-write. Get the msg from somewhere and the number of bytes
-		communication.writeSocket(c.conn, c.bet)
-		//fmt.Fprintf(
-		//	c.conn,
-		//	"[CLIENT %v] Message N°%v\n",
-		//	c.config.ID,
-		//	msgID,
-		//)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		msgID++
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-                c.config.ID,
-				err,
-			)
-			return
-		}
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+	// Create the connection the server in every loop iteration. Send an
+	// Skip the rest of the iteration if thee socket was not created 
+	err := c.createClientSocket()
+	if err != nil {
+		log.Errorf("action: create_socket | result: fail | client_id: %v | error: %v",
             c.config.ID,
-            msg,
-        )
+			err,
+		)
+		return
+	} 
 
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
+	log.Infof("[START CLIENT LOOP] Se creo el socket con el server")
+	
+	msg := serialize(c.bet)
+
+	log.Infof("[START CLIENT LOOP] Se serializo el mensaje y quedo: %s", msg)
+
+	//bytes_wrote := 0
+	// TO-DO: Handle short write
+	//bytes_wrote, err := communication.writeSocket(c.conn, msg)
+	writeSocket(c.conn, msg)
+
+	log.Infof("[START CLIENT LOOP] Se escribio en el socket")
+	
+	msg, err = bufio.NewReader(c.conn).ReadString('\n')
+	c.conn.Close()
+
+	log.Infof("[START CLIENT LOOP] Se leyo y cerro eel socket")
+
+	if err != nil {
+		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+            c.config.ID,
+			err,
+		)
+		return
 	}
+	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+        c.config.ID,
+        msg,
+    )
+
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
