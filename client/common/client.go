@@ -9,8 +9,21 @@ import (
 	"os/signal"
 	"syscall"
 
+	"./communication.go"
+
 	log "github.com/sirupsen/logrus"
 )
+
+const EMPTY_ENV = ""
+
+// Contains the info about the clients bet
+type Bet struct {
+	name		string
+	surname		string
+	id			string
+	birth		string
+	number		string
+}
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
@@ -22,15 +35,40 @@ type ClientConfig struct {
 
 // Client Entity that encapsulates how
 type Client struct {
-	config ClientConfig
-	conn   net.Conn
+	config 		ClientConfig
+	conn   		net.Conn
+	bet			Bet	
+}
+
+// Creates a Bet from the env variables
+func createBet() Bet {
+	//bet := Bet{}
+	//bet_type := reflect.TypeOf(bet)
+	//for i:= 0, i < bet_type.NumField(), i++ {
+	//	env_var := bet_type.Field(i).Name
+	//	val, ok := os.LookupEnv(env_var) 
+	//	
+	//	// Checks if the env var was set. If it was not or it has an empty value, nil is set.
+	//	if val == EMPTY_ENV {
+	//		
+	//	}
+	//}
+	bet = common.Bet{
+		name: os.Getenv("NAME"),
+		surname: os.Getenv("SURNAME"),
+		id: os.Getenv("ID"),
+		birth: os.Getenv("BIRTH"),
+		number: os.Getenv("NUMBER"),
+	}
+	return bet
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig) *Client {
-	client := &Client{
+func NewClient(config ClientConfig, bet Bet) *Client {
+	client := &Client {
 		config: config,
+		bet: bet,
 	}
 	return client
 }
@@ -39,17 +77,19 @@ func NewClient(config ClientConfig) *Client {
 // failure, error is printed in stdout/stderr and exit 1
 // is returned
 func (c *Client) createClientSocket() error {
-	conn, err := net.Dial("tcp", c.config.ServerAddress)
+	conn, err = communication.createSocket(c.config.ServerAddress)
 	if err != nil {
 		log.Fatalf(
 	        "action: connect | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
+		return err
 	}
 	c.conn = conn
 	return nil
 }
+
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
@@ -60,8 +100,6 @@ func (c *Client) StartClientLoop() {
 	signal_chan := make(chan os.Signal, 1)
 	signal.Notify(signal_chan, syscall.SIGTERM)
 
-	
-
 loop:
 	// Send messages if the loopLapse threshold has not been surpassed or a SIGTERM has not been received
 	for timeout := time.After(c.config.LoopLapse); ; {
@@ -71,7 +109,7 @@ loop:
                 c.config.ID,
             )
 			break loop
-		case <- signal_chan:
+		case <- signal_chan: // Check if a SIGTERM was received before starting the iteration
 			log.Infof("action: SIGTERM_detected | result: success | client_id: %v",
                 c.config.ID,
             )
@@ -80,15 +118,19 @@ loop:
 		}
 
 		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
+		// Skip the rest of the iteration if thee socket was not created  
+		if c.createClientSocket() != nil {
+			continue
+		} 
 
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
+		// TODO: Modify the send to avoid short-write. Get the msg from somewhere and the number of bytes
+		communication.writeSocket(c.conn, c.bet)
+		//fmt.Fprintf(
+		//	c.conn,
+		//	"[CLIENT %v] Message N°%v\n",
+		//	c.config.ID,
+		//	msgID,
+		//)
 		msg, err := bufio.NewReader(c.conn).ReadString('\n')
 		msgID++
 		c.conn.Close()

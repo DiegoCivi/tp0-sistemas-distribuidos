@@ -107,6 +107,7 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	bet = common.createBet()
+	client := common.NewClient(clientConfig, bet)
 	client.StartClientLoop()
 }
