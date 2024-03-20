@@ -9,9 +9,6 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
 
-        # A timeout is set for the gracefull stop
-        self._server_socket.settimeout(0.7)
-
         # Boolean to stop the server gracefully
         self._stop_server = False 
 
@@ -31,7 +28,7 @@ class Server:
             try:
                 client_sock = self.__accept_new_connection()
                 self.__handle_client_connection(client_sock)
-            except socket.timeout:
+            except OSError:
                 continue
 
         self._server_socket.close()
@@ -77,4 +74,5 @@ class Server:
         By setting self._stop_server to False, the server will continue with the iteration
         it was working, but it will be his last one before stopping gracefully. 
         """
+        self._server_socket.shutdown(socket.SHUT_RDWR)
         self._stop_server = True
