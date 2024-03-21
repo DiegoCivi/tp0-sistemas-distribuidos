@@ -1,7 +1,8 @@
 import socket
 import logging
 import signal
-from common.utils import deserialize, store_bets
+from common import communication
+from common.utils import store_bets
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -47,22 +48,18 @@ class Server:
         """
         try:
             # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
-            addr = client_sock.getpeername()
-
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-
-            # Deserialization of the message
-            bet, err = deserialize(msg)
+            bet, err = communication.read_socket(client_sock)
             if err != None:
                 logging.error(f'action: receive_bet | result: fail | error: {e} | ip: {addr[0]}')
+            addr = client_sock.getpeername()
+
     
             # Store the bet
             store_bets([bet])
             logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
 
             # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            #client_sock.send("{}\n".format(msg).encode('utf-8'))
 
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
