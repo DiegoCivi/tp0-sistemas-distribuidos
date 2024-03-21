@@ -34,17 +34,24 @@ def deserialize(msg):
         return (None, e)
     
 
-def read_socket(socket):
-    header = socket.recv(HEADER_LENGHT).decode('utf-8') # lE BORRE EL rstrip(), fijjasrse si eso no rompe
-    logging.info(f'Se recibio el header: {header}')
-    msg_len = int(header)
+#def read_socket(socket):
+#    header = socket.recv(HEADER_LENGHT).decode('utf-8') # lE BORRE EL rstrip(), fijarse si eso no rompe
+#    logging.info(f'Se recibio el header: {header}')
+#    msg_len = int(header)
+#
+#    msg = socket.recv(msg_len).rstrip().decode('utf-8')
+#    
+#    logging.info(f'action: receive_message | result: success | msg: {msg}')
+#
+#    # Deserialization of the message
+#    return deserialize(msg)
 
-    msg = socket.recv(msg_len).rstrip().decode('utf-8')
+def read_socket(socket, bytes_ro_read):
+    msg = socket.recv(bytes_ro_read).rstrip().decode('utf-8')
     
     logging.info(f'action: receive_message | result: success | msg: {msg}')
 
-    # Deserialization of the message
-    return deserialize(msg)
+    return msg
 
 def write_socket(socket, msg):
     # Add header

@@ -5,6 +5,8 @@ import time
 from common import communication
 from common.utils import store_bets
 
+HEADER_LENGHT = 4
+
 class Server:
     def __init__(self, port, listen_backlog):
         # Initialize server socket
@@ -45,13 +47,26 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            bet, err = communication.read_socket(client_sock)
-            if err != None:
-                logging.error(f'action: receive_bet | result: fail | error: {e} | ip: {addr[0]}')
+            # Read header
+            header = communication.read_socket(client_sock, HEADER_LENGHT)
             addr = client_sock.getpeername()
+            if len(header) != HEADER_LENGHT:
+                logging.error(f'action: receive_HEADER | result: SHORT-READ | ip: {addr[0]}')
 
-    
+            # Read message
+            msg_len = int(header)
+            bytes_read = 0
+            bet_msg = ""
+            while bytes_read < msg_len:
+                bet_msg += communication.read_socket(client_sock, msg_len - bytes_read)
+                bytes_read += len(bet_msg)
+
+            # Deserialize message
+            bet, err = communication.deserialize(bet_msg)
+            if err is not None:
+                logging.error(f'action: deserialize | result: fail | ip: {addr[0]}')
+                return
+
             # Store the bet
             store_bets([bet])
             logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
@@ -60,12 +75,10 @@ class Server:
             msg = bet.serialize()
             communication.write_socket(client_sock, msg)
 
-            time.sleep(4)
-
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
-        #finally:
-            #client_sock.close()
+        finally:
+            client_sock.close()
 
     def __accept_new_connection(self):
         """
