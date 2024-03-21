@@ -46,3 +46,22 @@ def read_socket(socket):
     # Deserialization of the message
     return deserialize(msg)
 
+def write_socket(socket, msg):
+    # Add header
+    header = get_header(msg)
+    complete_msg = header + msg
+
+    temp = socket.send(complete_msg.encode("utf-8"))
+
+    logging.info(f'action: write_message | result: success | msg: {complete_msg} | sent bytes: {temp}')
+    
+    return temp
+
+def get_header(msg):
+    msg_len = str(len(msg))
+    msg_len_bytes = len(msg_len)
+
+    for _ in range(0, HEADER_LENGHT - msg_len_bytes):
+        msg_len = '0' + msg_len
+
+    return msg_len

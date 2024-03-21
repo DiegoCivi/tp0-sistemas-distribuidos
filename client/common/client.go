@@ -1,7 +1,6 @@
 package common
 
 import (
-	"bufio"
 	"time"
 	"os"
 	"reflect"
@@ -136,11 +135,9 @@ func (c *Client) StartClientLoop() {
 
 	log.Infof("[START CLIENT LOOP] Se escribio en el socket")
 	
-	msg, err = bufio.NewReader(c.conn).ReadString('\n')
-	c.conn.Close()
-
-	log.Infof("[START CLIENT LOOP] Se leyo y cerro el socket")
-
+	// msg, err = bufio.NewReader(c.conn).ReadString('\n')
+	msg = readSocket(c.conn)
+	
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
             c.config.ID,
@@ -149,10 +146,11 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-        c.config.ID,
-        msg,
-    )
+	c.config.ID,
+	msg,
+)
 
+	c.conn.Close()
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }

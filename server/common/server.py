@@ -1,6 +1,7 @@
 import socket
 import logging
 import signal
+import time
 from common import communication
 from common.utils import store_bets
 
@@ -10,9 +11,6 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-
-        # A timeout is set for the gracefull stop
-        self._server_socket.settimeout(0.7)
 
         # Boolean to stop the server gracefully
         self._stop_server = False 
@@ -59,12 +57,15 @@ class Server:
             logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
 
             # TODO: Modify the send to avoid short-writes
-            #client_sock.send("{}\n".format(msg).encode('utf-8'))
+            msg = bet.serialize()
+            communication.write_socket(client_sock, msg)
+
+            time.sleep(4)
 
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
-            client_sock.close()
+        #finally:
+            #client_sock.close()
 
     def __accept_new_connection(self):
         """

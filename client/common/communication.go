@@ -50,7 +50,21 @@ func writeSocket(conn net.Conn, msg string) (int, error) {
 	log.Infof("[WRITE-SOCKET] El mensaje enviado es: %s", complete_msg)
 
 	// Send the serialized msg to the server
-	return fmt.Fprintf(conn, "%s\n", complete_msg)
+	return fmt.Fprintf(conn, "%s", complete_msg)
+}
+
+
+func readSocket(conn net.Conn) string {
+	buf := make([]byte, HEADER_LENGTH)
+	conn.Read(buf) // do smth with the bytes read
+	header := string(buf)
+	log.Infof("[READ-SOCKET] El header recibido es: %s", header)
+	i, _ := strconv.Atoi(header) // handle if this fails
+
+	buf = make([]byte, i)
+	conn.Read(buf)
+	msg := string(buf) 
+	return msg
 }
 
 func getHeader(msg string) string {
