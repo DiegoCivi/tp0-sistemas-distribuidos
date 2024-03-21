@@ -114,10 +114,21 @@ func (c *Client) StartClientLoop() {
 
 	log.Infof("[START CLIENT LOOP] Se serializo el mensaje y quedo: %s", msg)
 
-	//bytes_wrote := 0
 	// TO-DO: Handle short write
 	//bytes_wrote, err := communication.writeSocket(c.conn, msg)
-	writeSocket(c.conn, msg)
+	bytes_wrote := 0
+	bytes_to_write := len(msg)
+	for bytes_wrote < bytes_to_write {
+		nbytes, err := writeSocket(c.conn, msg)
+		if err != nil {
+			log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
+            	c.config.ID,
+				err,
+			)
+			return
+		}
+		bytes_wrote += nbytes
+	}
 	
 	// Read header
 	buf := make([]byte, HEADER_LENGTH)
@@ -140,8 +151,8 @@ func (c *Client) StartClientLoop() {
 		nbytes, err = c.conn.Read(buf)
 		if err != nil {
 			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-            c.config.ID,
-			err,
+            	c.config.ID,
+				err,
 			) 
 			return
 		}

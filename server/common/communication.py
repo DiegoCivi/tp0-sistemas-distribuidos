@@ -60,7 +60,7 @@ def write_socket(socket, msg):
 
     temp = socket.send(complete_msg.encode("utf-8"))
 
-    logging.info(f'action: write_message | result: success | msg: {complete_msg} | sent bytes: {temp}')
+    logging.info(f'action: write_message | result: success | msg: {complete_msg}')
     
     return temp
 

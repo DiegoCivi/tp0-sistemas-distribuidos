@@ -73,7 +73,12 @@ class Server:
 
             # TODO: Modify the send to avoid short-writes
             msg = bet.serialize()
-            communication.write_socket(client_sock, msg)
+            sent_bytes = 0
+            while sent_bytes < len(msg):
+                sent_bytes += communication.write_socket(client_sock, msg)
+                
+                
+
 
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")

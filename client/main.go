@@ -118,6 +118,5 @@ func main() {
 
 	bet := common.CreateBet()
 	client := common.NewClient(clientConfig, bet)
-	log.Infof("[MAIN] Se creo el cliente")
 	client.StartClientLoop()
 }
