@@ -1,12 +1,13 @@
 package common
 
 import (
-	"time"
+	"fmt"
+	"net"
 	"os"
 	"reflect"
-	"net"
-	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -37,18 +38,6 @@ type Client struct {
 
 // Creates a Bet from the env variables
 func CreateBet() Bet {
-	//bet := Bet{}
-	//bet_type := reflect.TypeOf(bet)
-	//for i:= 0, i < bet_type.NumField(), i++ {
-	//	env_var := bet_type.Field(i).Name
-	//	val, ok := os.LookupEnv(env_var) 
-	//	
-	//	// Checks if the env var was set. If it was not or it has an empty value, nil is set.
-	//	if val == EMPTY_ENV {
-	//		
-	//	}
-	//}
-	log.Infof("[CREATE BET] Se esta por crear la bet")
 	bet := Bet{
 		Name: os.Getenv("NAME"),
 		Surname: os.Getenv("SURNAME"),
@@ -56,7 +45,6 @@ func CreateBet() Bet {
 		Birth: os.Getenv("BIRTH"),
 		Number: os.Getenv("NUMBER"),
 	}
-	log.Infof("[CREATE BET] Se creo la bet")
 	return bet
 }
 
@@ -121,8 +109,6 @@ func (c *Client) StartClientLoop() {
 		)
 		return
 	} 
-
-	log.Infof("[START CLIENT LOOP] Se creo el socket con el server")
 	
 	msg := c.serialize()
 
@@ -132,22 +118,40 @@ func (c *Client) StartClientLoop() {
 	// TO-DO: Handle short write
 	//bytes_wrote, err := communication.writeSocket(c.conn, msg)
 	writeSocket(c.conn, msg)
-
-	log.Infof("[START CLIENT LOOP] Se escribio en el socket")
 	
-	// msg, err = bufio.NewReader(c.conn).ReadString('\n')
-	msg = readSocket(c.conn)
-	
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+	// Read header
+	buf := make([]byte, HEADER_LENGTH)
+	nbytes, err := c.conn.Read(buf)
+	if nbytes != HEADER_LENGTH {
+		log.Infof("action: receive_HEADER | result: SHORT-REEAD | client_id: %v", c.config.ID)
+	} else if err != nil {
+		log.Errorf("action: receive_HEADER | result: fail | client_id: %v | error: %v",
             c.config.ID,
 			err,
 		)
-		return
 	}
+
+	// Read message
+	msg_len, _ := strconv.Atoi(string(buf))
+	bytes_read := 0
+	bet_msg := ""
+	for bytes_read < msg_len {
+		buf = make([]byte, msg_len - bytes_read)
+		nbytes, err = c.conn.Read(buf)
+		if err != nil {
+			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
+            c.config.ID,
+			err,
+			) 
+			return
+		}
+		bet_msg += string(buf)
+		bytes_read += nbytes
+	}
+	
 	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
 	c.config.ID,
-	msg,
+	bet_msg,
 )
 
 	c.conn.Close()

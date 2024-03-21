@@ -54,18 +54,24 @@ func writeSocket(conn net.Conn, msg string) (int, error) {
 }
 
 
-func readSocket(conn net.Conn) string {
-	buf := make([]byte, HEADER_LENGTH)
-	conn.Read(buf) // do smth with the bytes read
-	header := string(buf)
-	log.Infof("[READ-SOCKET] El header recibido es: %s", header)
-	i, _ := strconv.Atoi(header) // handle if this fails
+//func readSocket(conn net.Conn) string {
+//	buf := make([]byte, HEADER_LENGTH)
+//	conn.Read(buf) // do smth with the bytes read
+//	header := string(buf)
+//	log.Infof("[READ-SOCKET] El header recibido es: %s", header)
+//	i, _ := strconv.Atoi(header) // handle if this fails
+//
+//	buf = make([]byte, i)
+//	conn.Read(buf)
+//	msg := string(buf) 
+//	return msg
+//}
 
-	buf = make([]byte, i)
-	conn.Read(buf)
-	msg := string(buf) 
-	return msg
-}
+//func readSocket(conn net.Conn, buf []byte) string {
+//	read_bytes, err := conn.Read(buf)
+//	msg := string(buf) 
+//	return msg
+//}
 
 func getHeader(msg string) string {
 	msg_len := strconv.Itoa(len(msg))
@@ -75,4 +81,3 @@ func getHeader(msg string) string {
 	}
 	return msg_len
 }
-
