@@ -4,6 +4,8 @@ import (
 	"net"
 	"fmt"
 	"strconv"
+	"reflect"
+	"strings"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -80,4 +82,25 @@ func getHeader(msg string) string {
 		msg_len = "0" + msg_len
 	}
 	return msg_len
+}
+
+func (c *Client) serialize() string {
+	msg := c.config.ID + "/"
+	v := reflect.ValueOf(c.bet)
+
+	// Iterate over Bet fields and add them to the message
+	for i := 0; i < v.NumField(); i++ {
+
+		val := v.Field(i).Interface()
+
+		// t :=  fmt.Sprintf("%s", val)
+		// log.Infof("[SERIALIZE] VALOR: %s", t)
+
+		msg += fmt.Sprintf("%s/", val)
+	}
+
+	msg = strings.TrimSuffix(msg, "/")
+	// log.Infof("[SERIALIZE] El mensaje serializado es: %s", msg)
+
+	return msg
 }

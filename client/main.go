@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"os"
+	//"os"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -109,11 +109,11 @@ func main() {
 	}
 
 	// TO-DO: Remove this
-	os.Setenv("NAME", "Santiago Lionel")
-    os.Setenv("SURNAME", "Lorca")
-    os.Setenv("ID", "30904465")
-    os.Setenv("BIRTH", "1999-03-17")
-    os.Setenv("NUMBER", "7574")
+	// os.Setenv("NAME", "Santiago Lionel")
+    // os.Setenv("SURNAME", "Lorca")
+    // os.Setenv("ID", "30904465")
+    // os.Setenv("BIRTH", "1999-03-17")
+    // os.Setenv("NUMBER", "7574")
 
 
 	bet := common.CreateBet()
