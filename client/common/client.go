@@ -88,23 +88,23 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-func serialize(bet Bet) string {
-	msg := ""
-	v := reflect.ValueOf(bet)
+func (c *Client) serialize() string {
+	msg := c.config.ID + "/"
+	v := reflect.ValueOf(c.bet)
 
 	// Iterate over Bet fields and add them to the message
 	for i := 0; i < v.NumField(); i++ {
 
 		val := v.Field(i).Interface()
 
-		t :=  fmt.Sprintf("%s", val)
-		log.Infof("[SERIALIZE] VALOR: %s", t)
+		// t :=  fmt.Sprintf("%s", val)
+		// log.Infof("[SERIALIZE] VALOR: %s", t)
 
 		msg += fmt.Sprintf("%s/", val)
 	}
 
 	msg = strings.TrimSuffix(msg, "/")
-	log.Infof("[SERIALIZE] El mensaje serializado es: %s", msg)
+	// log.Infof("[SERIALIZE] El mensaje serializado es: %s", msg)
 
 	return msg
 }
@@ -125,7 +125,7 @@ func (c *Client) StartClientLoop() {
 
 	log.Infof("[START CLIENT LOOP] Se creo el socket con el server")
 	
-	msg := serialize(c.bet)
+	msg := c.serialize()
 
 	log.Infof("[START CLIENT LOOP] Se serializo el mensaje y quedo: %s", msg)
 
@@ -139,7 +139,7 @@ func (c *Client) StartClientLoop() {
 	msg, err = bufio.NewReader(c.conn).ReadString('\n')
 	c.conn.Close()
 
-	log.Infof("[START CLIENT LOOP] Se leyo y cerro eel socket")
+	log.Infof("[START CLIENT LOOP] Se leyo y cerro el socket")
 
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",

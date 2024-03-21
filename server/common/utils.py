@@ -1,12 +1,17 @@
 import csv
 import datetime
-import time
-
 
 """ Bets storage location. """
 STORAGE_FILEPATH = "./bets.csv"
 """ Simulated winner number in the lottery contest. """
 LOTTERY_WINNER_NUMBER = 7574
+""" Indexes for bet atributes in the deserialization """
+AGENCY_INDEX = 1
+FIRST_NAME_INDEX = 2
+SECOND_NAME_INDEX = 3
+DOCUMENT_INDEX = 4
+BIRTHDATE_INDEX = 5
+NUMBER_INDEX = 6 
 
 
 """ A lottery bet registry. """
@@ -49,3 +54,21 @@ def load_bets() -> list[Bet]:
         for row in reader:
             yield Bet(row[0], row[1], row[2], row[3], row[4], row[5])
 
+
+"""
+Deserealizes a message and creates a Bet
+"""
+def deserialize(msg):
+    splitted_msg = msg.split('/')
+
+    agency = splitted_msg[AGENCY_INDEX]
+    first_name = splitted_msg[FIRST_NAME_INDEX]
+    second_name = splitted_msg[SECOND_NAME_INDEX]
+    document = splitted_msg[DOCUMENT_INDEX]
+    birthdate = splitted_msg[BIRTHDATE_INDEX]
+    number = splitted_msg[NUMBER_INDEX]
+
+    try:
+        return Bet(agency, first_name, second_name, document, birthdate, number), None
+    except ValueError as e:
+        return None, e
