@@ -4,34 +4,43 @@ import logging
 
 """ Indexes for bet atributes in the deserialization """
 BYTES_LEN_INDEX = 0
-AGENCY_INDEX = 0
-FIRST_NAME_INDEX = 1
-SECOND_NAME_INDEX = 2
-DOCUMENT_INDEX = 3
-BIRTHDATE_INDEX = 4
-NUMBER_INDEX = 5
+FIRST_NAME_INDEX = 0
+SECOND_NAME_INDEX = 1
+DOCUMENT_INDEX = 2
+BIRTHDATE_INDEX = 3
+NUMBER_INDEX = 4
 """ Lenght of the communication headers protcol"""
 HEADER_LENGHT = 4
+""" Separators """
+LINE_SEPARATOR = '/'
+INFO_SEPARATOR = ','
 
 """
-Deserealizes a message and creates a Bet.
+Deserealizes a message and creates a list with Bets.
 """
-def deserialize(msg):
-    splitted_msg = msg.split('/')
+def deserialize(msg, agency):
+    # The message is first splitted to have the different bets
+    splitted_lines = msg.split(LINE_SEPARATOR)
+    bets = []
 
-    # bytes_to_read = splitted_msg[BYTES_LEN_INDEX]
+    # The last item in the splitted_lines list is ignored since its a empty string
+    # This happens because the last character of the message received is a '/' 
+    for bet_msg in splitted_lines[:-1]:
+        splitted_msg = bet_msg.split(INFO_SEPARATOR)
 
-    agency = splitted_msg[AGENCY_INDEX]
-    first_name = splitted_msg[FIRST_NAME_INDEX]
-    second_name = splitted_msg[SECOND_NAME_INDEX]
-    document = splitted_msg[DOCUMENT_INDEX]
-    birthdate = splitted_msg[BIRTHDATE_INDEX]
-    number = splitted_msg[NUMBER_INDEX]
+        first_name = splitted_msg[FIRST_NAME_INDEX]
+        second_name = splitted_msg[SECOND_NAME_INDEX]
+        document = splitted_msg[DOCUMENT_INDEX]
+        birthdate = splitted_msg[BIRTHDATE_INDEX]
+        number = splitted_msg[NUMBER_INDEX]
 
-    try:
-        return (Bet(agency, first_name, second_name, document, birthdate, number), None)
-    except ValueError as e:
-        return (None, e)
+        try:
+            bet = Bet(agency, first_name, second_name, document, birthdate, number)
+            bets.append(bet)
+        except ValueError as e:
+            return (None, e)
+    
+    return (bets, None)
 
 """
 Reads from the received socket. It supports short-read.
@@ -41,9 +50,13 @@ def read_socket(socket):
         # Read header
         header = _handle_short_read(socket, HEADER_LENGHT)
 
+        #logging.info(f'RECIBI EL HEADER: {header}')
+
         # Read message
         msg_len = int(header)
         bet_msg = _handle_short_read(socket, msg_len)
+
+        #logging.info(f'RECIBI EL MENSAJE: {bet_msg}')
 
         return bet_msg, None
     
@@ -72,6 +85,8 @@ def write_socket(socket, msg):
         header = get_header(msg)
         complete_msg = header + msg
         
+        logging.info(f'EL ACK A MANDAR ES: {complete_msg}')
+
         _handle_short_write(socket, complete_msg, len(complete_msg))
 
         return None

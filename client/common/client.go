@@ -10,7 +10,8 @@ import (
 )
 
 const (
-	BATCH_SIZE = 4096
+	BATCH_SIZE = 100
+	SEPARATOR = "/"
 )
 
 // Contains the info about the clients bet
@@ -82,19 +83,20 @@ func (c *Client) StartClientLoop() {
 	// Skip the rest if the socket was not created
 	err := c.createClientSocket()
 	if err != nil {
-		log.Errorf("action: create_socket | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		log.Errorf("action: create_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	// Send the client id
+	err = writeSocket(c.conn, []byte(c.config.ID))
+	if err != nil {
+		log.Errorf("action: send_ID | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
 	reader, err := getReader(c.config.ID)
 	if err != nil {
-		log.Errorf("action: open_file | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		log.Errorf("action: open_file | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
@@ -103,25 +105,26 @@ func (c *Client) StartClientLoop() {
 		line, _, err := reader.ReadLine() // TODO: Use the isPrefix
 		if err != nil {
 			if err != errors.New("EOF") {
-				log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
-					c.config.ID,
-					err,
-				)
+				log.Errorf("action: send_message | result: fail | client_id: %v | error: %v", c.config.ID, err)
 				c.conn.Close()
 				return
 			}
 			break
 		}
 
-		if len(line)+len(batch) > BATCH_SIZE {
+		if len(line) + len(batch) > BATCH_SIZE {
 			if sendBatch(c.conn, batch, c.config.ID) != nil {
-				//ver lo que hay que cerrar
+				log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
+				c.conn.Close()
 				return
 			}
 			batch = []byte("")
 		}
 
+		// The read line is appended to the match, with a separator to diferentiate lines
+		// The last byte will represent a '/'
 		batch = append(batch, line...)
+		batch = append(batch, []byte(SEPARATOR)...)
 	}
 
 	c.conn.Close()

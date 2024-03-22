@@ -6,13 +6,12 @@ import (
 	"strconv"
 	"reflect"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
-const (
-    READ_BUF_SIZE  = 1024
-    WRITE_BUF_SIZE = 1024
-	HEADER_LENGTH = 4
-)
+const HEADER_LENGTH = 4
+
 
 // Called by writeSocket(). It returns the protocols header for a message.
 func getHeader(msg []byte) []byte {
@@ -29,6 +28,8 @@ func writeSocket(conn net.Conn, msg []byte) error {
 	// Add header
 	header := getHeader(msg)
 	complete_msg := append(header, msg...)
+
+	log.Infof("EL BATCH A MANDAR ES: %s", msg)
 
 	err := handleShortWrite(conn, complete_msg, len(complete_msg))
 	if err != nil {

@@ -48,31 +48,36 @@ class Server:
         """
         addr = client_sock.getpeername()
 
+        # Read the number of the agency
+        agency, err = communication.read_socket(client_sock)
+
         # Read message
-        bet_msg, err = communication.read_socket(client_sock)
+        msg, err = communication.read_socket(client_sock)
         if err is not None:
             logging.error(f'action: read_socket | result: fail | ip: {addr[0]} | error: {err}')
+            client_sock.close()
             return
 
         # Deserialize message
-        bet, err = communication.deserialize(bet_msg)
+        bets, err = communication.deserialize(msg, agency)
         if err is not None:
             logging.error(f'action: deserialize | result: fail | ip: {addr[0]} | error: {err}')
             client_sock.close()
             return
 
         # Store the bet
-        store_bets([bet])
-        logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+        store_bets(bets)
+        logging.info(f'action: apuestas_almacenada | result: success | ip: {addr[0]}')
 
         # Send message back
-        msg = f'ACK/{bet.agency}/{bet.number}'
+        msg = f'ACK'
         err = communication.write_socket(client_sock, msg)
         if err is not None:
             logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')
             client_sock.close()
             return
         
+        logging.info(f'action: send_ack | result: success | ip: {addr[0]}')
 
         client_sock.close()
 
