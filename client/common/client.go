@@ -62,26 +62,12 @@ func (c *Client) StartClientLoop() {
 
 	
 
+	// Send messages if the loopLapse threshold has not been surpassed or a SIGTERM has not been received	
 loop:
-	// Send messages if the loopLapse threshold has not been surpassed or a SIGTERM has not been received
-	for timeout := time.After(c.config.LoopLapse); ; {
-		select {
-		case <-timeout:
-	        log.Infof("action: timeout_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		case <- signal_chan:
-			log.Infof("action: SIGTERM_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		default:
-		}
-
+	for loop_timeout := time.After(c.config.LoopLapse); ;{
 		// Create the connection the server in every loop iteration. Send an
 		c.createClientSocket()
-
+		
 		// TODO: Modify the send to avoid short-write
 		fmt.Fprintf(
 			c.conn,
@@ -92,21 +78,29 @@ loop:
 		msg, err := bufio.NewReader(c.conn).ReadString('\n')
 		msgID++
 		c.conn.Close()
-
+		
 		if err != nil {
 			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-                c.config.ID,
+				c.config.ID,
 				err,
 			)
 			return
 		}
 		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-            c.config.ID,
-            msg,
-        )
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
+			c.config.ID,
+			msg,
+		)
+	
+		msg_timeout := time.After(c.config.LoopPeriod)
+		select {
+			case <-loop_timeout:
+				log.Infof("action: timeout_detected | result: success | client_id: %v", c.config.ID)
+				break loop
+			case <- signal_chan:
+				log.Infof("action: SIGTERM_detected | result: success | client_id: %v", c.config.ID)
+				break loop
+			case <-msg_timeout:
+		}
 	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
