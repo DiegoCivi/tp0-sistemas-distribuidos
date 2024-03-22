@@ -15,20 +15,20 @@ const (
 )
 
 // Called by writeSocket(). It returns the protocols header for a message.
-func getHeader(msg string) string {
+func getHeader(msg []byte) []byte {
 	msg_len := strconv.Itoa(len(msg))
 	msg_len_bytes := len(msg_len)
 	for i := 0; i < HEADER_LENGTH - msg_len_bytes; i++ {
 		msg_len = "0" + msg_len
 	}
-	return msg_len
+	return []byte(msg_len)
 }
 
 // Writes the message into the received socket
-func writeSocket(conn net.Conn, msg string) error {
+func writeSocket(conn net.Conn, msg []byte) error {
 	// Add header
 	header := getHeader(msg)
-	complete_msg := header + msg
+	complete_msg := append(header, msg...)
 
 	err := handleShortWrite(conn, complete_msg, len(complete_msg))
 	if err != nil {
@@ -39,7 +39,7 @@ func writeSocket(conn net.Conn, msg string) error {
 
 // Called by writeSocket(). It makes sure that if a short-write happens,
 // the rest of the message is also sent.
-func handleShortWrite(conn net.Conn, msg string, bytes_to_write int) error {
+func handleShortWrite(conn net.Conn, msg []byte, bytes_to_write int) error {
 	// Send serialized message to server, handling short read
 	bytes_wrote := 0
 	first_iter := true
@@ -47,9 +47,9 @@ func handleShortWrite(conn net.Conn, msg string, bytes_to_write int) error {
 	var err error
 	for bytes_wrote < bytes_to_write {
 		if first_iter { // In the first iteration we have to send the complete message
-			nbytes, err = conn.Write([]byte(msg))
+			nbytes, err = conn.Write(msg)
 		} else { // If it is not the first iteration, the remaining of the message need to be sent
-			nbytes, err = conn.Write([]byte(msg[bytes_wrote + 1:]))
+			nbytes, err = conn.Write(msg[bytes_wrote + 1:])
 		}
 
 		if err != nil {

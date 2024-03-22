@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
 	//"os"
 
 	"github.com/pkg/errors"
@@ -107,14 +108,6 @@ func main() {
 		LoopLapse:     v.GetDuration("loop.lapse"),
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
-
-	// TO-DO: Remove this
-	// os.Setenv("NAME", "Santiago Lionel")
-    // os.Setenv("SURNAME", "Lorca")
-    // os.Setenv("ID", "30904465")
-    // os.Setenv("BIRTH", "1999-03-17")
-    // os.Setenv("NUMBER", "7574")
-
 
 	bet := common.CreateBet()
 	client := common.NewClient(clientConfig, bet)
