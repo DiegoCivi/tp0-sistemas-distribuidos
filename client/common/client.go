@@ -3,15 +3,9 @@ package common
 import (
 	"net"
 	"os"
-	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	ERR = -1
-	NO_ERR = 0
 )
 
 // Contains the info about the clients bet
@@ -64,7 +58,7 @@ func NewClient(config ClientConfig, bet Bet) *Client {
 // failure, error is printed in stdout/stderr and exit 1
 // is returned
 func (c *Client) createClientSocket() error {
-	conn, err := createSocket(c.config.ServerAddress)
+	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
 		log.Fatalf(
 	        "action: connect | result: fail | client_id: %v | error: %v",
@@ -75,40 +69,6 @@ func (c *Client) createClientSocket() error {
 	}
 	c.conn = conn
 	return nil
-}
-
-func (c *Client) sendServer(msg string) int {
-	// Send serialized message to server, handling short read
-	bytes_wrote := 0
-	bytes_to_write := len(msg)
-	for bytes_wrote < bytes_to_write {
-		nbytes, err := writeSocket(c.conn, msg)
-		if err != nil {
-			log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
-            	c.config.ID,
-				err,
-			)
-			return ERR
-		}
-		bytes_wrote += nbytes
-	}
-
-	return NO_ERR
-}
-
-func (c *Client) readServer(bytes_to_read int) (string, error) {
-	bytes_read := 0
-	msg := ""
-	for bytes_read < bytes_to_read {
-		buf := make([]byte, bytes_to_read - bytes_read)
-		nbytes, err := c.conn.Read(buf)
-		if err != nil {
-			return "", err
-		}
-		msg += string(buf)
-		bytes_read += nbytes
-	}
-	return msg, nil
 }
 
 
@@ -125,35 +85,30 @@ func (c *Client) StartClientLoop() {
 		return
 	} 
 	
-	// Send Bet to server
+	// Send Bet to the server
 	msg := c.serialize()
-	if c.sendServer(msg) == ERR {
+	err = writeSocket(c.conn, msg)
+	if err != nil {
+		log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
+            c.config.ID,
+			err,
+		)
+		c.conn.Close()
 		return
-	}
+	} 
 
-	
-	// Read header
-	header, err := c.readServer(HEADER_LENGTH)
+	// Read Bet ack from server
+	bet_msg, err := readSocket(c.conn)
 	if err != nil {
 		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
             c.config.ID,
 			err,
-		) 
-		return
-	}
-
-	// Read message
-	msg_len, _ := strconv.Atoi(header)
-	bet_msg, err := c.readServer(msg_len)
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-            c.config.ID,
-			err,
-		) 
+		)
+		c.conn.Close()
 		return
 	}
 	
-	log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
+	log.Infof("action: receive_message | result: success | client_id: %v | msg: %s",
 		c.config.ID,
 		bet_msg,
 	)

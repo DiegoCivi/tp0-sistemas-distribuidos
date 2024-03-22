@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"reflect"
 	"strings"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -15,66 +14,7 @@ const (
 	HEADER_LENGTH = 4
 )
 
-func createSocket(addr string) (net.Conn, error) {
-	conn, err := net.Dial("tcp", addr)
-	if err != nil {
-		return nil, err
-	} 
-
-	//err = setBuffers(conn)
-	//if err != nil {
-	//	conn.Close()
-	//	return nil, err
-	//}
-
-	return conn, nil
-}
-
-// func setBuffers(conn net.Conn) error {
-// 	err := conn.SetReadBuffer(READ_BUF_SIZE)
-// 	if err != nil {
-// 		return err
-// 	}
-// 
-// 	err = conn.SetWriteBuffer(WRITE_BUF_SIZE)
-// 	if err != nil {
-// 		return err
-// 	}
-// 
-// 	return nil
-// }
-
-func writeSocket(conn net.Conn, msg string) (int, error) {
-	// Add header
-	header := getHeader(msg)
-	complete_msg := header + msg
-
-	log.Infof("[WRITE-SOCKET] El mensaje enviado es: %s", complete_msg)
-
-	// Send the serialized msg to the server
-	return fmt.Fprintf(conn, "%s", complete_msg)
-}
-
-
-//func readSocket(conn net.Conn) string {
-//	buf := make([]byte, HEADER_LENGTH)
-//	conn.Read(buf) // do smth with the bytes read
-//	header := string(buf)
-//	log.Infof("[READ-SOCKET] El header recibido es: %s", header)
-//	i, _ := strconv.Atoi(header) // handle if this fails
-//
-//	buf = make([]byte, i)
-//	conn.Read(buf)
-//	msg := string(buf) 
-//	return msg
-//}
-
-//func readSocket(conn net.Conn, buf []byte) string {
-//	read_bytes, err := conn.Read(buf)
-//	msg := string(buf) 
-//	return msg
-//}
-
+// Called by writeSocket(). It returns the protocols header for a message.
 func getHeader(msg string) string {
 	msg_len := strconv.Itoa(len(msg))
 	msg_len_bytes := len(msg_len)
@@ -84,23 +24,87 @@ func getHeader(msg string) string {
 	return msg_len
 }
 
+// Writes the message into the received socket
+func writeSocket(conn net.Conn, msg string) error {
+	// Add header
+	header := getHeader(msg)
+	complete_msg := header + msg
+
+	err := handleShortWrite(conn, complete_msg, len(complete_msg))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Called by writeSocket(). It makes sure that if a short-write happens,
+// the rest of the message is also sent.
+func handleShortWrite(conn net.Conn, msg string, bytes_to_write int) error {
+	// Send serialized message to server, handling short read
+	bytes_wrote := 0
+	first_iter := true
+	nbytes := 0
+	var err error
+	for bytes_wrote < bytes_to_write {
+		if first_iter { // In the first iteration we have to send the complete message
+			nbytes, err = conn.Write([]byte(msg))
+		} else { // If it is not the first iteration, the remaining of the message need to be sent
+			nbytes, err = conn.Write([]byte(msg[bytes_wrote + 1:]))
+		}
+
+		if err != nil {
+			return err
+		}
+		bytes_wrote += nbytes
+	}
+
+	return nil
+}
+
+// Reads from the received socket.
+// It returns the message received or the error.
+func readSocket(conn net.Conn) (string, error) {
+	// Read header
+	header, err := handleShortRead(conn, HEADER_LENGTH)
+	if err != nil {
+		return header, err
+	}
+
+	// Read message
+	msg_len, _ := strconv.Atoi(header)
+	msg, err := handleShortRead(conn, msg_len)
+	
+	return msg, err
+}
+
+// Called by writeSocket(). It makes sure that if a short-read happens,
+// the rest of the message is also read.
+func handleShortRead(conn net.Conn, bytes_to_read int) (string, error) {
+	bytes_read := 0
+	msg := ""
+	for bytes_read < bytes_to_read {
+		buf := make([]byte, bytes_to_read - bytes_read)
+		nbytes, err := conn.Read(buf)
+		if err != nil {
+			return "", err
+		}
+		msg += string(buf)
+		bytes_read += nbytes
+	}
+	return msg, nil
+}
+
+// Serializes the clients bet into a string by iterating over the Bet fields
 func (c *Client) serialize() string {
 	msg := c.config.ID + "/"
 	v := reflect.ValueOf(c.bet)
 
-	// Iterate over Bet fields and add them to the message
 	for i := 0; i < v.NumField(); i++ {
-
 		val := v.Field(i).Interface()
-
-		// t :=  fmt.Sprintf("%s", val)
-		// log.Infof("[SERIALIZE] VALOR: %s", t)
-
 		msg += fmt.Sprintf("%s/", val)
 	}
 
 	msg = strings.TrimSuffix(msg, "/")
-	// log.Infof("[SERIALIZE] El mensaje serializado es: %s", msg)
 
 	return msg
 }

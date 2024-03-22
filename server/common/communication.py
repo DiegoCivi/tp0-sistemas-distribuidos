@@ -14,7 +14,7 @@ NUMBER_INDEX = 5
 HEADER_LENGHT = 4
 
 """
-Deserealizes a message and creates a Bet
+Deserealizes a message and creates a Bet.
 """
 def deserialize(msg):
     splitted_msg = msg.split('/')
@@ -32,38 +32,65 @@ def deserialize(msg):
         return (Bet(agency, first_name, second_name, document, birthdate, number), None)
     except ValueError as e:
         return (None, e)
+
+"""
+Reads from the received socket. It supports short-read.
+"""
+def read_socket(socket):
+    try: 
+        # Read header
+        header = _handle_short_read(socket, HEADER_LENGHT)
+
+        # Read message
+        msg_len = int(header)
+        bet_msg = _handle_short_read(socket, msg_len)
+
+        return bet_msg, None
     
+    except Exception as e:
+        return None, e
 
-#def read_socket(socket):
-#    header = socket.recv(HEADER_LENGHT).decode('utf-8') # lE BORRE EL rstrip(), fijarse si eso no rompe
-#    logging.info(f'Se recibio el header: {header}')
-#    msg_len = int(header)
-#
-#    msg = socket.recv(msg_len).rstrip().decode('utf-8')
-#    
-#    logging.info(f'action: receive_message | result: success | msg: {msg}')
-#
-#    # Deserialization of the message
-#    return deserialize(msg)
-
-def read_socket(socket, bytes_ro_read):
-    msg = socket.recv(bytes_ro_read).rstrip().decode('utf-8')
+"""
+Handler of the short-read. Called by read_socket().
+"""
+def _handle_short_read(socket, bytes_to_read):
+    bytes_read = 0
+    msg = ""
+    while bytes_read < bytes_to_read:
+        msg += socket.recv(bytes_to_read - bytes_read).rstrip().decode('utf-8')
+        bytes_read += len(msg)
     
-    logging.info(f'action: receive_message | result: success | msg: {msg}')
-
     return msg
 
+
+"""
+Writes into the received socket. It supports short-write.
+"""
 def write_socket(socket, msg):
-    # Add header
-    header = get_header(msg)
-    complete_msg = header + msg
+    try: 
+        # Add header
+        header = get_header(msg)
+        complete_msg = header + msg
+        
+        _handle_short_write(socket, complete_msg, len(complete_msg))
 
-    temp = socket.send(complete_msg.encode("utf-8"))
-
-    logging.info(f'action: write_message | result: success | msg: {complete_msg}')
+        return None
     
-    return temp
+    except Exception as e:
+        return e
 
+"""
+If the socket.send() call does not write the whole message, 
+it sends again from the first byte it did not sent.
+"""
+def _handle_short_write(socket, msg, bytes_to_write):
+    sent_bytes = socket.send(msg.encode("utf-8"))
+    while sent_bytes < bytes_to_write:
+        sent_bytes += socket.send(msg[sent_bytes + 1:].encode("utf-8"))
+
+"""
+Returns the protocols header for a message
+"""
 def get_header(msg):
     msg_len = str(len(msg))
     msg_len_bytes = len(msg_len)

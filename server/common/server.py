@@ -46,44 +46,37 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
-        try:
-            # Read header
-            header = communication.read_socket(client_sock, HEADER_LENGHT)
-            addr = client_sock.getpeername()
-            if len(header) != HEADER_LENGHT:
-                logging.error(f'action: receive_HEADER | result: SHORT-READ | ip: {addr[0]}')
+        addr = client_sock.getpeername()
 
-            # Read message
-            msg_len = int(header)
-            bytes_read = 0
-            bet_msg = ""
-            while bytes_read < msg_len:
-                bet_msg += communication.read_socket(client_sock, msg_len - bytes_read)
-                bytes_read += len(bet_msg)
+        # Read message
+        bet_msg, err = communication.read_socket(client_sock)
+        if err is not None:
+            logging.error(f'action: read_socket | result: fail | ip: {addr[0]} | error: {err}')
+            return
 
-            # Deserialize message
-            bet, err = communication.deserialize(bet_msg)
-            if err is not None:
-                logging.error(f'action: deserialize | result: fail | ip: {addr[0]}')
-                return
-
-            # Store the bet
-            store_bets([bet])
-            logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
-
-            # TODO: Modify the send to avoid short-writes
-            msg = bet.serialize()
-            sent_bytes = 0
-            while sent_bytes < len(msg):
-                sent_bytes += communication.write_socket(client_sock, msg)
-                
-                
-
-
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
+        # Deserialize message
+        bet, err = communication.deserialize(bet_msg)
+        if err is not None:
+            logging.error(f'action: deserialize | result: fail | ip: {addr[0]} | error: {err}')
             client_sock.close()
+            return
+
+        # Store the bet
+        store_bets([bet])
+        logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+
+        # Send message back
+        msg = f'ACK/{bet.agency}/{bet.number}'
+        err = communication.write_socket(client_sock, msg)
+        if err is not None:
+            logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')
+            client_sock.close()
+            return
+        
+
+        client_sock.close()
+
+        
 
     def __accept_new_connection(self):
         """
