@@ -1,10 +1,12 @@
 package common
 
 import (
+	"io"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
-	"io"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -87,6 +89,10 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
+	// Channel to receive SIGTERM signal
+	signal_chan := make(chan os.Signal, 1)
+	signal.Notify(signal_chan, syscall.SIGTERM)
+
 	// Send the client id
 	err = writeSocket(c.conn, []byte(c.config.ID))
 	if err != nil {
@@ -101,7 +107,17 @@ func (c *Client) StartClientLoop() {
 	}
 
 	batch := []byte("")
+
+loop:
 	for {
+		select {
+		case <-signal_chan:
+			log.Errorf("action: sigterm_received | result: success | client_id: %v | error: %v", c.config.ID, err)
+			c.conn.Close()
+			break loop
+		default:
+		}
+		
 		line, isPrefix, err := reader.ReadLine() // TODO: Use the isPrefix
 		if err != nil {
 			if err != io.EOF { // Handle any errors other than EOF 

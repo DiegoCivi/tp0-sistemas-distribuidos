@@ -81,7 +81,7 @@ class Server:
                 logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')
                 client_sock.close()
                 return
-            logging.info(f'action: send_ack | result: success | ip: {addr[0]}')
+            
 
         client_sock.close()
 
