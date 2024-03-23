@@ -102,7 +102,7 @@ func (c *Client) StartClientLoop() {
 
 	batch := []byte("")
 	for {
-		line, _, err := reader.ReadLine() // TODO: Use the isPrefix
+		line, isPrefix, err := reader.ReadLine() // TODO: Use the isPrefix
 		if err != nil {
 			if err != io.EOF { // Handle any errors other than EOF 
 				log.Errorf("action: read_line | result: fail | client_id: %v | error: %v", c.config.ID, err)
@@ -116,6 +116,9 @@ func (c *Client) StartClientLoop() {
 				}
 			}
 			break
+		} else if isPrefix { // If isPrefix is set, the line didnt enter so we have to read again
+			batch = append(batch, line...)
+			continue
 		}
 
 		// If adding the new line to the batch exceeds its maximum size,
