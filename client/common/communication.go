@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"strings"
 
-	//log "github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
-// The header is HEADER_LENGTH long, but MSG_SIZE_LENGTH bytes are for the part of the header that 
-// tell how long in bytes is the message. One byte will occupy the end_flag in the header. 
+// The header is HEADER_LENGTH long, but MSG_SIZE_LENGTH bytes are for the part of the header that
+// tell how long in bytes is the message. One byte will occupy the end_flag in the header.
 const HEADER_LENGTH = 5
 const MSG_SIZE_LENGTH = 4
 
@@ -97,12 +97,14 @@ func handleShortRead(conn net.Conn, bytes_to_read int) (string, error) {
 	return msg, nil
 }
 
-func closeSocket(conn net.Conn) error {
+func closeSocket(conn net.Conn) {
 	// Send the header with the end flag set on 1
 	header := getHeader([]byte(""), "1")
 	err := handleShortWrite(conn, header)
+	if err != nil {
+		log.Infof("action: send_batch | result: fail | error: %v", err)
+	}
 	conn.Close()
-	return err
 }
 
 // Serializes the clients bet into a string by iterating over the Bet fields

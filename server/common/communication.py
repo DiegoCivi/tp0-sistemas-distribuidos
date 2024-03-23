@@ -85,8 +85,6 @@ def write_socket(socket, msg):
         header = get_header(msg, "0")
         complete_msg = header + msg
         
-        #logging.info(f'EL ACK A MANDAR ES: {complete_msg}')
-
         _handle_short_write(socket, complete_msg)
 
         return None

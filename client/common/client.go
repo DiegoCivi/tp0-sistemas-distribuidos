@@ -1,7 +1,6 @@
 package common
 
 import (
-	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -100,36 +99,31 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
-	reader, err := getReader(c.config.ID)
+	reader, file, err := getReader(c.config.ID)
 	if err != nil {
 		log.Errorf("action: open_file | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
 	batch := []byte("")
-
 loop:
 	for {
 		select {
 		case <-signal_chan:
 			log.Errorf("action: sigterm_received | result: success | client_id: %v | error: %v", c.config.ID, err)
-			c.conn.Close()
+			closeSocket(c.conn)
+			file.Close()
 			break loop
 		default:
 		}
-		
+
 		line, isPrefix, err := reader.ReadLine() // TODO: Use the isPrefix
 		if err != nil {
-			if err != io.EOF { // Handle any errors other than EOF 
-				log.Errorf("action: read_line | result: fail | client_id: %v | error: %v", c.config.ID, err)
-				c.conn.Close()
+			finish_conn := handleFileErrors(err, c.conn, c.config.ID, batch)
+			if finish_conn {
+				closeSocket(c.conn)
+				file.Close()
 				return
-			} else if len(batch) > 0 { // If an EOF was received, but theres still bytes on the batch
-				if sendBatch(c.conn, batch, c.config.ID) != nil {
-					log.Errorf("action: send_last_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
-					c.conn.Close()
-					return
-				}
 			}
 			break
 		} else if isPrefix { // If isPrefix is set, the line didnt enter so we have to read again
@@ -142,7 +136,8 @@ loop:
 		if len(line) + len(batch) > BATCH_SIZE {
 			if sendBatch(c.conn, batch, c.config.ID) != nil {
 				log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
-				c.conn.Close()
+				closeSocket(c.conn)
+				file.Close()
 				return
 			}
 			batch = []byte("")
@@ -155,11 +150,8 @@ loop:
 	}
 	
 	// Send the message with the END-FLAG set to true
-	err = closeSocket(c.conn)
-	if err != nil {
-		log.Errorf("action: close_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
-		return
-	}
+	closeSocket(c.conn)
+	file.Close()
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
