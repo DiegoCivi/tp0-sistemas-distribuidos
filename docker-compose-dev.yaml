@@ -18,7 +18,7 @@ services:
     networks:
     - testing_net
     volumes:
-    - client_config:/config
+    - ./client/data:/data
   server:
     container_name: server
     entrypoint: python3 /main.py
@@ -29,8 +29,5 @@ services:
     networks:
     - testing_net
     volumes:
-    - server_config:/config
+    - ./server/config:/config
 version: '3.9'
-volumes:
-  client_config: null
-  server_config: null

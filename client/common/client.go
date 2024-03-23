@@ -104,14 +104,22 @@ func (c *Client) StartClientLoop() {
 	for {
 		line, _, err := reader.ReadLine() // TODO: Use the isPrefix
 		if err != nil {
-			if err != errors.New("EOF") {
+			if err != errors.New("EOF") { // Handle any errors other than EOF 
 				log.Errorf("action: send_message | result: fail | client_id: %v | error: %v", c.config.ID, err)
 				c.conn.Close()
 				return
+			} else if len(batch) > 0 { // If an EOF was received, but theres still bytes on the batch
+				if sendBatch(c.conn, batch, c.config.ID) != nil {
+					log.Errorf("action: send_last_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
+					c.conn.Close()
+					return
+				}
 			}
 			break
 		}
 
+		// If adding the new line to the batch exceeds its maximum size,
+		// the batch is sent and emptied.
 		if len(line) + len(batch) > BATCH_SIZE {
 			if sendBatch(c.conn, batch, c.config.ID) != nil {
 				log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
@@ -126,6 +134,8 @@ func (c *Client) StartClientLoop() {
 		batch = append(batch, line...)
 		batch = append(batch, []byte(SEPARATOR)...)
 	}
+	
+	// Send the message with the END-FLAG set to true
 
 	c.conn.Close()
 

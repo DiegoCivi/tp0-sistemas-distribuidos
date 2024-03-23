@@ -40,16 +40,6 @@ func sendBatch(conn net.Conn, batch []byte, id string) error {
 }
 
 func getReader(id string) (*bufio.Reader, error) {
-	//files, err := ioutil.ReadDir("./data")
-    //if err != nil {
-    //    log.Infof("[CLIENT-%s] Voy a abrir: /data/",id)
-    //}
-//
-    //for _, file := range files {
-	//	log.Infof("[CLIENT-%s] EN la carpeta data tenemos: %s", id,file.Name())
-    //}
-	//return nil, errors.New("EOF")
-
 	file_path := "./data/agency-" + id + ".csv"
 
 	log.Infof("[CLIENT-%s] Voy a abrir: %s",
@@ -66,3 +56,20 @@ func getReader(id string) (*bufio.Reader, error) {
 
 	return reader, nil
 }
+
+//func handleReadLine(reader *bufio.Reader, batch []byte) ([]byte, error) {
+//	line, _, err := reader.ReadLine() // TODO: Use the isPrefix
+//	if err != nil {
+//		if err != errors.New("EOF") { // Handle any errors other than EOF 
+//			log.Errorf("action: send_message | result: fail | client_id: %v | error: %v", c.config.ID, err)
+//			return nil, err
+//		} else if len(batch) > 0 { // If an EOF was received, but theres still bytes on the batch
+//			//if sendBatch(c.conn, batch, c.config.ID) != nil {
+//			//	log.Errorf("action: send_last_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
+//			//	c.conn.Close()
+//			//	return
+//			//}
+//		}
+//	}
+//	return line, nil
+//}

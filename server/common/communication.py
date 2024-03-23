@@ -70,11 +70,11 @@ def _handle_short_read(socket, bytes_to_read):
     bytes_read = 0
     msg = ""
     while bytes_read < bytes_to_read:
-        msg += socket.recv(bytes_to_read - bytes_read).rstrip().decode('utf-8')
-        bytes_read += len(msg)
+        msg_bytes = socket.recv(bytes_to_read - bytes_read) #.rstrip()
+        bytes_read += len(msg_bytes)
+        msg += msg_bytes.decode('utf-8')
     
     return msg
-
 
 """
 Writes into the received socket. It supports short-write.
@@ -87,7 +87,7 @@ def write_socket(socket, msg):
         
         logging.info(f'EL ACK A MANDAR ES: {complete_msg}')
 
-        _handle_short_write(socket, complete_msg, len(complete_msg))
+        _handle_short_write(socket, complete_msg)
 
         return None
     
@@ -98,10 +98,12 @@ def write_socket(socket, msg):
 If the socket.send() call does not write the whole message, 
 it sends again from the first byte it did not sent.
 """
-def _handle_short_write(socket, msg, bytes_to_write):
-    sent_bytes = socket.send(msg.encode("utf-8"))
+def _handle_short_write(socket, msg):
+    msg_bytes = msg.encode("utf-8")
+    bytes_to_write = len(msg_bytes)
+    sent_bytes = socket.send(msg_bytes)
     while sent_bytes < bytes_to_write:
-        sent_bytes += socket.send(msg[sent_bytes + 1:].encode("utf-8"))
+        sent_bytes += socket.send(msg_bytes[sent_bytes:])
 
 """
 Returns the protocols header for a message

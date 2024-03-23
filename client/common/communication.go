@@ -31,7 +31,7 @@ func writeSocket(conn net.Conn, msg []byte) error {
 
 	log.Infof("EL BATCH A MANDAR ES: %s", msg)
 
-	err := handleShortWrite(conn, complete_msg, len(complete_msg))
+	err := handleShortWrite(conn, complete_msg)
 	if err != nil {
 		return err
 	}
@@ -40,19 +40,12 @@ func writeSocket(conn net.Conn, msg []byte) error {
 
 // Called by writeSocket(). It makes sure that if a short-write happens,
 // the rest of the message is also sent.
-func handleShortWrite(conn net.Conn, msg []byte, bytes_to_write int) error {
+func handleShortWrite(conn net.Conn, msg []byte) error {
 	// Send serialized message to server, handling short read
+	bytes_to_write := len(msg)
 	bytes_wrote := 0
-	first_iter := true
-	nbytes := 0
-	var err error
 	for bytes_wrote < bytes_to_write {
-		if first_iter { // In the first iteration we have to send the complete message
-			nbytes, err = conn.Write(msg)
-		} else { // If it is not the first iteration, the remaining of the message need to be sent
-			nbytes, err = conn.Write(msg[bytes_wrote + 1:])
-		}
-
+		nbytes, err := conn.Write(msg[bytes_wrote:])
 		if err != nil {
 			return err
 		}
