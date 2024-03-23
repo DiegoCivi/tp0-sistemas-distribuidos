@@ -86,7 +86,7 @@ it sends again from the first byte it did not sent.
 def _handle_short_write(socket, msg, bytes_to_write):
     sent_bytes = socket.send(msg.encode("utf-8"))
     while sent_bytes < bytes_to_write:
-        sent_bytes += socket.send(msg[sent_bytes + 1:].encode("utf-8"))
+        sent_bytes += socket.send(msg[sent_bytes:].encode("utf-8"))
 
 """
 Returns the protocols header for a message

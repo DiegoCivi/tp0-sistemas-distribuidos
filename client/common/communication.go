@@ -42,16 +42,8 @@ func writeSocket(conn net.Conn, msg string) error {
 func handleShortWrite(conn net.Conn, msg string, bytes_to_write int) error {
 	// Send serialized message to server, handling short read
 	bytes_wrote := 0
-	first_iter := true
-	nbytes := 0
-	var err error
 	for bytes_wrote < bytes_to_write {
-		if first_iter { // In the first iteration we have to send the complete message
-			nbytes, err = conn.Write([]byte(msg))
-		} else { // If it is not the first iteration, the remaining of the message need to be sent
-			nbytes, err = conn.Write([]byte(msg[bytes_wrote + 1:]))
-		}
-
+		nbytes, err := conn.Write([]byte(msg[bytes_wrote:]))
 		if err != nil {
 			return err
 		}
