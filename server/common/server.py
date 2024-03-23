@@ -51,33 +51,37 @@ class Server:
         # Read the number of the agency
         agency, err = communication.read_socket(client_sock)
 
-        # Read message
-        msg, err = communication.read_socket(client_sock)
-        if err is not None:
-            logging.error(f'action: read_socket | result: fail | ip: {addr[0]} | error: {err}')
-            client_sock.close()
-            return
+        eof = False
+        while eof != True:
+            # Read message
+            msg, err = communication.read_socket(client_sock)
+            if err is not None:
+                logging.error(f'action: read_socket | result: fail | ip: {addr[0]} | error: {err}')
+                client_sock.close()
+                return
+            elif msg == "EOF":
+                logging.info(f'action: finish_loop | result: success | ip: {addr[0]}')
+                break
 
-        # Deserialize message
-        bets, err = communication.deserialize(msg, agency)
-        if err is not None:
-            logging.error(f'action: deserialize | result: fail | ip: {addr[0]} | error: {err}')
-            client_sock.close()
-            return
+            # Deserialize message
+            bets, err = communication.deserialize(msg, agency)
+            if err is not None:
+                logging.error(f'action: deserialize | result: fail | ip: {addr[0]} | message: {msg} |error: {err}')
+                client_sock.close()
+                return
 
-        # Store the bet
-        store_bets(bets)
-        logging.info(f'action: apuestas_almacenada | result: success | ip: {addr[0]}')
+            # Store the bet
+            store_bets(bets)
+            logging.info(f'action: apuestas_almacenada | result: success | ip: {addr[0]}')
 
-        # Send message back
-        msg = f'ACK'
-        err = communication.write_socket(client_sock, msg)
-        if err is not None:
-            logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')
-            client_sock.close()
-            return
-        
-        logging.info(f'action: send_ack | result: success | ip: {addr[0]}')
+            # Send ack
+            msg = f'ACK'
+            err = communication.write_socket(client_sock, msg)
+            if err is not None:
+                logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')
+                client_sock.close()
+                return
+            logging.info(f'action: send_ack | result: success | ip: {addr[0]}')
 
         client_sock.close()
 

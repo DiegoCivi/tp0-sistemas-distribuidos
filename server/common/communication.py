@@ -10,7 +10,8 @@ DOCUMENT_INDEX = 2
 BIRTHDATE_INDEX = 3
 NUMBER_INDEX = 4
 """ Lenght of the communication headers protcol"""
-HEADER_LENGHT = 4
+HEADER_LENGHT = 5
+MSG_SIZE_LENGTH = 4
 """ Separators """
 LINE_SEPARATOR = '/'
 INFO_SEPARATOR = ','
@@ -50,13 +51,12 @@ def read_socket(socket):
         # Read header
         header = _handle_short_read(socket, HEADER_LENGHT)
 
-        #logging.info(f'RECIBI EL HEADER: {header}')
-
         # Read message
-        msg_len = int(header)
+        msg_len = int(header[:-1])
+        end_flag = int(header[-1])
+        if end_flag == 1:
+            return "EOF", None
         bet_msg = _handle_short_read(socket, msg_len)
-
-        #logging.info(f'RECIBI EL MENSAJE: {bet_msg}')
 
         return bet_msg, None
     
@@ -82,7 +82,7 @@ Writes into the received socket. It supports short-write.
 def write_socket(socket, msg):
     try: 
         # Add header
-        header = get_header(msg)
+        header = get_header(msg, "0")
         complete_msg = header + msg
         
         logging.info(f'EL ACK A MANDAR ES: {complete_msg}')
@@ -108,11 +108,13 @@ def _handle_short_write(socket, msg):
 """
 Returns the protocols header for a message
 """
-def get_header(msg):
-    msg_len = str(len(msg))
-    msg_len_bytes = len(msg_len)
+def get_header(msg, end_flag):
+    header = str(len(msg))
+    msg_len_bytes = len(header)
 
-    for _ in range(0, HEADER_LENGHT - msg_len_bytes):
-        msg_len = '0' + msg_len
+    for _ in range(0, MSG_SIZE_LENGTH - msg_len_bytes):
+        header = '0' + header
 
-    return msg_len
+    header += end_flag
+
+    return header

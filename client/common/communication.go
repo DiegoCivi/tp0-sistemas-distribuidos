@@ -1,35 +1,40 @@
 package common
 
 import (
-	"net"
+	"errors"
 	"fmt"
-	"strconv"
+	"net"
 	"reflect"
+	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
+	//log "github.com/sirupsen/logrus"
 )
 
-const HEADER_LENGTH = 4
+// The header is HEADER_LENGTH long, but MSG_SIZE_LENGTH bytes are for the part of the header that 
+// tell how long in bytes is the message. One byte will occupy the end_flag in the header. 
+const HEADER_LENGTH = 5
+const MSG_SIZE_LENGTH = 4
 
 
 // Called by writeSocket(). It returns the protocols header for a message.
-func getHeader(msg []byte) []byte {
-	msg_len := strconv.Itoa(len(msg))
-	msg_len_bytes := len(msg_len)
-	for i := 0; i < HEADER_LENGTH - msg_len_bytes; i++ {
-		msg_len = "0" + msg_len
+func getHeader(msg []byte, end_flag string) []byte {
+	header := strconv.Itoa(len(msg))
+	msg_len_bytes := len(header)
+	for i := 0; i < MSG_SIZE_LENGTH - msg_len_bytes; i++ {
+		header = "0" + header
 	}
-	return []byte(msg_len)
+	header += end_flag
+	return []byte(header)
 }
 
 // Writes the message into the received socket
 func writeSocket(conn net.Conn, msg []byte) error {
 	// Add header
-	header := getHeader(msg)
+	header := getHeader(msg, "0")
 	complete_msg := append(header, msg...)
 
-	log.Infof("EL BATCH A MANDAR ES: %s", msg)
+	//log.Infof("EL BATCH A MANDAR ES: %s", complete_msg)
 
 	err := handleShortWrite(conn, complete_msg)
 	if err != nil {
@@ -65,7 +70,11 @@ func readSocket(conn net.Conn) (string, error) {
 	}
 
 	// Read message
-	msg_len, _ := strconv.Atoi(header)
+	msg_len, _ := strconv.Atoi(header[:len(header) - 1])
+	end_flag := string(header[len(header) - 1])
+	if end_flag == "1" {
+		return "", errors.New("EOF")
+	}
 	msg, err := handleShortRead(conn, msg_len)
 	
 	return msg, err
@@ -86,6 +95,14 @@ func handleShortRead(conn net.Conn, bytes_to_read int) (string, error) {
 		bytes_read += nbytes
 	}
 	return msg, nil
+}
+
+func closeSocket(conn net.Conn) error {
+	// Send the header with the end flag set on 1
+	header := getHeader([]byte(""), "1")
+	err := handleShortWrite(conn, header)
+	conn.Close()
+	return err
 }
 
 // Serializes the clients bet into a string by iterating over the Bet fields

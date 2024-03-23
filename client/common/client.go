@@ -1,16 +1,16 @@
 package common
 
 import (
-	"errors"
 	"net"
 	"os"
 	"time"
+	"io"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	BATCH_SIZE = 100
+	BATCH_SIZE = 7000
 	SEPARATOR = "/"
 )
 
@@ -104,8 +104,8 @@ func (c *Client) StartClientLoop() {
 	for {
 		line, _, err := reader.ReadLine() // TODO: Use the isPrefix
 		if err != nil {
-			if err != errors.New("EOF") { // Handle any errors other than EOF 
-				log.Errorf("action: send_message | result: fail | client_id: %v | error: %v", c.config.ID, err)
+			if err != io.EOF { // Handle any errors other than EOF 
+				log.Errorf("action: read_line | result: fail | client_id: %v | error: %v", c.config.ID, err)
 				c.conn.Close()
 				return
 			} else if len(batch) > 0 { // If an EOF was received, but theres still bytes on the batch
@@ -136,8 +136,11 @@ func (c *Client) StartClientLoop() {
 	}
 	
 	// Send the message with the END-FLAG set to true
-
-	c.conn.Close()
+	err = closeSocket(c.conn)
+	if err != nil {
+		log.Errorf("action: close_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
