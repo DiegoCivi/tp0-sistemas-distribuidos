@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	BATCH_SIZE = 7000
+	BATCH_MAX_SIZE = 8000
+	BETS_IN_BATCH = 150
 	SEPARATOR = "/"
 )
 
@@ -106,6 +107,7 @@ func (c *Client) StartClientLoop() {
 	}
 
 	batch := []byte("")
+	bets_in_msg := 0
 loop:
 	for {
 		select {
@@ -131,9 +133,9 @@ loop:
 			continue
 		}
 
-		// If adding the new line to the batch exceeds its maximum size,
-		// the batch is sent and emptied.
-		if len(line) + len(batch) > BATCH_SIZE {
+		// If adding the new line to the batch exceeds its maximum size, 
+		// or there are BETS_IN_BATCH bets in the message are the batch is sent and emptied.
+		if len(line) + len(batch) > BATCH_MAX_SIZE || bets_in_msg == BETS_IN_BATCH {
 			if sendBatch(c.conn, batch, c.config.ID) != nil {
 				log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
 				closeSocket(c.conn)
@@ -141,12 +143,14 @@ loop:
 				return
 			}
 			batch = []byte("")
+			bets_in_msg = 0
 		}
 
 		// The read line is appended to the match, with a separator to diferentiate lines
 		// The last byte will represent a '/'
 		batch = append(batch, line...)
 		batch = append(batch, []byte(SEPARATOR)...)
+		bets_in_msg += 1
 	}
 	
 	// Send the message with the END-FLAG set to true
