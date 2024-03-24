@@ -28,15 +28,18 @@ class Server:
         communication with a client. After client with communucation
         finishes, servers starts to accept new connections again
         """
-
-        while not self._stop_server:
+        clients_accepted = 0
+        while not self._stop_server or clients_accepted != 5:
             try:
                 client_sock = self.__accept_new_connection()
                 self.__handle_client_connection(client_sock)
+                clients_accepted += 1
             except socket.timeout:
+                # In case the client_sock wasn't closed because of the exception
+                client_sock.close()
+                self._server_socket.close()
                 continue
 
-        self._server_socket.close()
         logging.info(f'action: server_finished | result: success')
 
     def __handle_client_connection(self, client_sock):
