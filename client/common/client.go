@@ -1,12 +1,12 @@
 package common
 
 import (
+	"bufio"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-	"bufio"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -135,6 +135,27 @@ loop:
 	return nil
 }
 
+// Client reads the socket, receiving the different winners until the server tells to stop reading.
+func readLotteryWinners(conn net.Conn, id string) error {
+	winners := 0
+loop:
+	for {
+		_, err := readSocket(conn)
+		if err != nil {
+			if err.Error() == "EOF" {
+				break loop
+			}
+			log.Errorf("action: receive_winner | result: fail | client_id: %v | error: %v", id, err)
+			return err
+		}
+		winners += 1
+	}
+
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d", winners)
+
+	return nil
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	// Create the connection the server in every loop iteration. Send an
@@ -144,8 +165,6 @@ func (c *Client) StartClientLoop() {
 		log.Errorf("action: create_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
-
-	
 
 	// Send the client id
 	err = writeSocket(c.conn, []byte(c.config.ID))
@@ -172,6 +191,16 @@ func (c *Client) StartClientLoop() {
 		log.Errorf("action: close_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
+
+	// Read loterry winners
+	err = readLotteryWinners(c.conn, c.config.ID)
+	if err != nil {
+		log.Errorf("action: read_lottery_winners | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	c.conn.Close()
+	file.Close()
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }

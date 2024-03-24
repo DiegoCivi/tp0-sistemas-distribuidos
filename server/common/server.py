@@ -32,24 +32,46 @@ class Server:
         finishes, servers starts to accept new connections again
         """
         clients_accepted = 0
-        while not self._stop_server or clients_accepted != 5:
+        while not self._stop_server and clients_accepted != 5:
             try:
                 agency, client_sock = self.__accept_new_connection()
                 self.__handle_client_connection(client_sock, agency)
-            except socket.timeout:
+            except OSError as e:
                 # In case the client_sock wasn't closed because of the exception
                 client_sock.close()
+                self.__close_clients_socks()
                 self._server_socket.close()
                 continue
 
-            self.clients[agency] = client_sock
+            self.clients[int(agency)] = client_sock
             clients_accepted += 1
+
+        if self._stop_server:
+            return
 
         logging.info('action: sorteo | result: success')
 
         self.start_lottery()
 
+        self.__close_clients_socks()
         logging.info('action: server_finished | result: success')
+
+    def start_lottery(self):
+        """
+        For each winner found, a message with the document is sent to the corresponding agency.
+        Afeter thath, we notify the agencys there are no more winners to send.
+        """
+
+        for bet in load_bets():
+            if has_won(bet):
+                client_sock = self.clients[bet.agency]
+                err = communication.write_socket(client_sock, bet.document)
+                if err != None:
+                    logging.error(f"action: send_winner | result: fail | error: {err}")
+                    return        
+
+        for sock in self.clients.values():
+            communication.sendEOF(sock)
 
     def __handle_client_connection(self, client_sock, agency):
         """
@@ -82,7 +104,6 @@ class Server:
 
             # Store the bet
             store_bets(bets)
-            logging.info(f'action: apuestas_almacenada | result: success | ip: {addr[0]}')
 
             # Send ack
             msg = f'ACK'
@@ -91,7 +112,6 @@ class Server:
                 logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')
                 client_sock.close()
                 return
-            logging.info(f'action: send_ack | result: success | ip: {addr[0]}')
         
 
     def __accept_new_connection(self):
@@ -111,15 +131,10 @@ class Server:
         agency, _ = communication.read_socket(c)
 
         return agency, c
-    
-    def start_lottery(self):
-
-        for bet in load_bets():
-            if has_won(bet):
-                #notify its agency
-                communication.write_socket()
         
-
+    def __close_clients_socks(self):
+        for sock in self.clients.values():
+            sock.close()
 
 
     def __exit_gracefully(self, *args):
@@ -129,4 +144,5 @@ class Server:
         By setting self._stop_server to False, the server will continue with the iteration
         it was working, but it will be his last one before stopping gracefully. 
         """
+        self._server_socket.shutdown(socket.SHUT_RDWR)
         self._stop_server = True

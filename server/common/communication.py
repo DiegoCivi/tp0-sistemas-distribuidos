@@ -116,3 +116,11 @@ def get_header(msg, end_flag):
     header += end_flag
 
     return header
+
+def sendEOF(socket):
+    try: 
+        header = get_header("", "1")        
+        _handle_short_write(socket, header)
+        return None
+    except Exception as e:
+        return e
