@@ -3,14 +3,17 @@ package common
 import (
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
-	"io"
+	"bufio"
 
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	BATCH_SIZE = 7000
+	BATCH_MAX_SIZE = 8000
+	BETS_IN_BATCH = 150
 	SEPARATOR = "/"
 )
 
@@ -77,6 +80,61 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
+func sendBets(reader *bufio.Reader, conn net.Conn, id string, file *os.File) error {
+	// Channel to receive SIGTERM signal
+	signal_chan := make(chan os.Signal, 1)
+	signal.Notify(signal_chan, syscall.SIGTERM)
+
+	batch := []byte("")
+	bets_in_msg := 0
+loop:
+	for {
+		select {
+		case <-signal_chan:
+			log.Errorf("action: sigterm_received | result: success | client_id: %v", id)
+			conn.Close()
+			file.Close()
+			break loop
+		default:
+		}
+
+		line, isPrefix, err := reader.ReadLine() // TODO: Use the isPrefix
+		if err != nil {
+			finish_conn := handleFileErrors(err, conn, id, batch)
+			if finish_conn {
+				conn.Close()
+				file.Close()
+				return err
+			}
+			break
+		} else if isPrefix { // If isPrefix is set, the line didnt enter so we have to read again
+			batch = append(batch, line...)
+			continue
+		}
+
+		// If adding the new line to the batch exceeds its maximum size, 
+		// or there are BETS_IN_BATCH bets in the message are the batch is sent and emptied.
+		if len(line) + len(batch) > BATCH_MAX_SIZE || bets_in_msg == BETS_IN_BATCH {
+			if sendBatch(conn, batch, id) != nil {
+				log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", id, err)
+				conn.Close()
+				file.Close()
+				return err
+			}
+			batch = []byte("")
+			bets_in_msg = 0
+		}
+
+		// The read line is appended to the match, with a separator to diferentiate lines
+		// The last byte will represent a '/'
+		batch = append(batch, line...)
+		batch = append(batch, []byte(SEPARATOR)...)
+		bets_in_msg += 1
+	}
+
+	return nil
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	// Create the connection the server in every loop iteration. Send an
@@ -87,6 +145,8 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
+	
+
 	// Send the client id
 	err = writeSocket(c.conn, []byte(c.config.ID))
 	if err != nil {
@@ -94,47 +154,18 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
-	reader, err := getReader(c.config.ID)
+	reader, file, err := getReader(c.config.ID)
 	if err != nil {
 		log.Errorf("action: open_file | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
-	batch := []byte("")
-	for {
-		line, _, err := reader.ReadLine() // TODO: Use the isPrefix
-		if err != nil {
-			if err != io.EOF { // Handle any errors other than EOF 
-				log.Errorf("action: read_line | result: fail | client_id: %v | error: %v", c.config.ID, err)
-				c.conn.Close()
-				return
-			} else if len(batch) > 0 { // If an EOF was received, but theres still bytes on the batch
-				if sendBatch(c.conn, batch, c.config.ID) != nil {
-					log.Errorf("action: send_last_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
-					c.conn.Close()
-					return
-				}
-			}
-			break
-		}
-
-		// If adding the new line to the batch exceeds its maximum size,
-		// the batch is sent and emptied.
-		if len(line) + len(batch) > BATCH_SIZE {
-			if sendBatch(c.conn, batch, c.config.ID) != nil {
-				log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
-				c.conn.Close()
-				return
-			}
-			batch = []byte("")
-		}
-
-		// The read line is appended to the match, with a separator to diferentiate lines
-		// The last byte will represent a '/'
-		batch = append(batch, line...)
-		batch = append(batch, []byte(SEPARATOR)...)
+	// Send all the bets from the file to the server
+	err = sendBets(reader, c.conn, c.config.ID, file)
+	if err != nil {
+		return
 	}
-	
+
 	// Send the message with the END-FLAG set to true
 	err = sendEOF(c.conn)
 	if err != nil {

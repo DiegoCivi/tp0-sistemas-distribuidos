@@ -2,17 +2,12 @@ package common
 
 import (
 	"errors"
-	"fmt"
 	"net"
-	"reflect"
 	"strconv"
-	"strings"
-
-	//log "github.com/sirupsen/logrus"
 )
 
-// The header is HEADER_LENGTH long, but MSG_SIZE_LENGTH bytes are for the part of the header that 
-// tell how long in bytes is the message. One byte will occupy the end_flag in the header. 
+// The header is HEADER_LENGTH long, but MSG_SIZE_LENGTH bytes are for the part of the header that
+// tell how long in bytes is the message. One byte will occupy the end_flag in the header.
 const HEADER_LENGTH = 5
 const MSG_SIZE_LENGTH = 4
 
@@ -102,19 +97,4 @@ func sendEOF(conn net.Conn) error {
 	header := getHeader([]byte(""), "1")
 	err := handleShortWrite(conn, header)
 	return err
-}
-
-// Serializes the clients bet into a string by iterating over the Bet fields
-func (c *Client) serialize() string {
-	msg := c.config.ID + "/"
-	v := reflect.ValueOf(c.bet)
-
-	for i := 0; i < v.NumField(); i++ {
-		val := v.Field(i).Interface()
-		msg += fmt.Sprintf("%s/", val)
-	}
-
-	msg = strings.TrimSuffix(msg, "/")
-
-	return msg
 }
