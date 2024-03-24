@@ -136,7 +136,7 @@ func (c *Client) StartClientLoop() {
 	}
 	
 	// Send the message with the END-FLAG set to true
-	err = closeSocket(c.conn)
+	err = sendEOF(c.conn)
 	if err != nil {
 		log.Errorf("action: close_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return

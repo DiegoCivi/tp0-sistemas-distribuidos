@@ -97,11 +97,10 @@ func handleShortRead(conn net.Conn, bytes_to_read int) (string, error) {
 	return msg, nil
 }
 
-func closeSocket(conn net.Conn) error {
+func sendEOF(conn net.Conn) error {
 	// Send the header with the end flag set on 1
 	header := getHeader([]byte(""), "1")
 	err := handleShortWrite(conn, header)
-	conn.Close()
 	return err
 }
 

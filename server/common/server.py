@@ -3,7 +3,7 @@ import logging
 import signal
 import time
 from common import communication
-from common.utils import store_bets
+from common.utils import store_bets, load_bets, has_won
 
 HEADER_LENGHT = 4
 
@@ -13,6 +13,9 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+
+        # Dictionary that will have agency number as keys and client sockets as values
+        self.clients = dict()
 
         # Boolean to stop the server gracefully
         self._stop_server = False 
@@ -31,18 +34,24 @@ class Server:
         clients_accepted = 0
         while not self._stop_server or clients_accepted != 5:
             try:
-                client_sock = self.__accept_new_connection()
-                self.__handle_client_connection(client_sock)
-                clients_accepted += 1
+                agency, client_sock = self.__accept_new_connection()
+                self.__handle_client_connection(client_sock, agency)
             except socket.timeout:
                 # In case the client_sock wasn't closed because of the exception
                 client_sock.close()
                 self._server_socket.close()
                 continue
 
-        logging.info(f'action: server_finished | result: success')
+            self.clients[agency] = client_sock
+            clients_accepted += 1
 
-    def __handle_client_connection(self, client_sock):
+        logging.info('action: sorteo | result: success')
+
+        self.start_lottery()
+
+        logging.info('action: server_finished | result: success')
+
+    def __handle_client_connection(self, client_sock, agency):
         """
         Read message from a specific client socket and closes the socket
 
@@ -50,9 +59,6 @@ class Server:
         client socket will also be closed
         """
         addr = client_sock.getpeername()
-
-        # Read the number of the agency
-        agency, err = communication.read_socket(client_sock)
 
         eof = False
         while eof != True:
@@ -65,6 +71,7 @@ class Server:
             elif msg == "EOF":
                 logging.info(f'action: finish_loop | result: success | ip: {addr[0]}')
                 break
+                
 
             # Deserialize message
             bets, err = communication.deserialize(msg, agency)
@@ -85,9 +92,6 @@ class Server:
                 client_sock.close()
                 return
             logging.info(f'action: send_ack | result: success | ip: {addr[0]}')
-
-        client_sock.close()
-
         
 
     def __accept_new_connection(self):
@@ -102,7 +106,21 @@ class Server:
         logging.info('action: accept_connections | result: in_progress')
         c, addr = self._server_socket.accept()
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
-        return c
+
+        # Read the number of the agency
+        agency, _ = communication.read_socket(c)
+
+        return agency, c
+    
+    def start_lottery(self):
+
+        for bet in load_bets():
+            if has_won(bet):
+                #notify its agency
+                communication.write_socket()
+        
+
+
 
     def __exit_gracefully(self, *args):
         """
