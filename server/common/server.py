@@ -92,7 +92,8 @@ class Server:
                 return
             elif msg == "EOF":
                 logging.info(f'action: finish_loop | result: success | ip: {addr[0]}')
-                break
+                eof = True
+                continue
                 
 
             # Deserialize message
