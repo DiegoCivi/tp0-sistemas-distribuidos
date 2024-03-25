@@ -2,15 +2,30 @@ package common
 
 import (
 	"bufio"
-	"fmt"
+	"errors"
 	"net"
-	"time"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
+
+const (
+	BATCH_MAX_SIZE = 8000
+	BETS_IN_BATCH = 150
+	SEPARATOR = "/"
+)
+
+// Contains the info about the clients bet
+type Bet struct {
+	Name    string
+	Surname string
+	Id      string
+	Birth   string
+	Number  string
+}
 
 // ClientConfig Configuration used by the client
 type ClientConfig struct {
@@ -24,13 +39,27 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
+	bet    Bet
+}
+
+// Creates a Bet from the env variables
+func CreateBet() Bet {
+	bet := Bet{
+		Name:    os.Getenv("NAME"),
+		Surname: os.Getenv("SURNAME"),
+		Id:      os.Getenv("ID"),
+		Birth:   os.Getenv("BIRTH"),
+		Number:  os.Getenv("NUMBER"),
+	}
+	return bet
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig) *Client {
+func NewClient(config ClientConfig, bet Bet) *Client {
 	client := &Client{
 		config: config,
+		bet:    bet,
 	}
 	return client
 }
@@ -42,72 +71,150 @@ func (c *Client) createClientSocket() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
 		log.Fatalf(
-	        "action: connect | result: fail | client_id: %v | error: %v",
+			"action: connect | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
+		return err
 	}
 	c.conn = conn
 	return nil
 }
 
+// Reads the file line by line, including them in a batch.
+// Then sends the batch to the server and waits for the acknowledment.
+func sendBets(reader *bufio.Reader, conn net.Conn, id string, file *os.File, signal_chan chan os.Signal) error {
+	batch := []byte("")
+	bets_in_msg := 0
+	for {
+		select {
+		case <-signal_chan:
+			log.Errorf("action: sigterm_received | result: success | client_id: %v", id)
+			conn.Close()
+			file.Close()
+			return errors.New("SIGTERM")
+		default:
+		}
+
+		line, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			finish_conn := handleFileErrors(err, conn, id, batch)
+			if finish_conn {
+				conn.Close()
+				file.Close()
+				return err
+			}
+			break
+		} else if isPrefix { // If isPrefix is set, the line didnt enter so we have to read again
+			batch = append(batch, line...)
+			continue
+		}
+
+		// If adding the new line to the batch exceeds its maximum size, 
+		// or there are BETS_IN_BATCH bets in the message are the batch is sent and emptied.
+		if len(line) + len(batch) > BATCH_MAX_SIZE || bets_in_msg == BETS_IN_BATCH {
+			if sendBatch(conn, batch, id) != nil {
+				log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", id, err)
+				conn.Close()
+				file.Close()
+				return err
+			}
+			batch = []byte("")
+			bets_in_msg = 0
+		}
+
+		// The read line is appended to the match, with a separator to diferentiate lines
+		// The last byte will represent a '/'
+		batch = append(batch, line...)
+		batch = append(batch, []byte(SEPARATOR)...)
+		bets_in_msg += 1
+	}
+	return nil
+}
+
+// Client reads the socket, receiving the different winners until the server tells to stop reading.
+func readLotteryWinners(conn net.Conn, id string, signal_chan chan os.Signal) error {
+	winners := 0
+loop:
+	for {
+		select {
+		case <-signal_chan:
+			log.Errorf("action: sigterm_received | result: success | client_id: %v", id)
+			conn.Close()
+			return errors.New("SIGTERM")
+		default:	
+		}
+		_, err := readSocket(conn)
+		if err != nil {
+			if err.Error() == "EOF" {
+				break loop
+			}
+			log.Errorf("action: receive_winner | result: fail | client_id: %v | error: %v", id, err)
+			return err
+		}
+		winners += 1
+	}
+
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d", winners)
+
+	return nil
+}
+
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	// autoincremental msgID to identify every message sent
-	msgID := 1
-
 	// Channel to receive SIGTERM signal
 	signal_chan := make(chan os.Signal, 1)
 	signal.Notify(signal_chan, syscall.SIGTERM)
 
-	
-
-loop:
-	// Send messages if the loopLapse threshold has not been surpassed or a SIGTERM has not been received
-	for timeout := time.After(c.config.LoopLapse); ; {
-		select {
-		case <-timeout:
-	        log.Infof("action: timeout_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		case <- signal_chan:
-			log.Infof("action: SIGTERM_detected | result: success | client_id: %v",
-                c.config.ID,
-            )
-			break loop
-		default:
-		}
-
-		// Create the connection the server in every loop iteration. Send an
-		c.createClientSocket()
-
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		msgID++
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-                c.config.ID,
-				err,
-			)
-			return
-		}
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-            c.config.ID,
-            msg,
-        )
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
+	// Create the connection the server in every loop iteration. Send an
+	// Skip the rest if the socket was not created
+	err := c.createClientSocket()
+	if err != nil {
+		log.Errorf("action: create_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
 	}
 
+	// Send the client id
+	err = writeSocket(c.conn, []byte(c.config.ID))
+	if err != nil {
+		log.Errorf("action: send_ID | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	reader, file, err := getReader(c.config.ID)
+	if err != nil {
+		log.Errorf("action: open_file | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	// Send all the bets from the file to the server
+	err = sendBets(reader, c.conn, c.config.ID, file, signal_chan)
+	if err != nil {
+		if err.Error() != "SIGTERM" {
+			log.Errorf("action: close_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		}
+		return
+	}
+	file.Close()
+
+	// Send the message with the END-FLAG set to true
+	err = sendEOF(c.conn)
+	if err != nil {
+		c.conn.Close()
+		return
+	}
+
+	// Read loterry winners
+	err = readLotteryWinners(c.conn, c.config.ID, signal_chan)
+	if err != nil {
+		if err.Error() != "SIGTERM" {
+			log.Errorf("action: read_lottery_winners | result: fail | client_id: %v | error: %v", c.config.ID, err)
+
+		}
+		c.conn.Close()
+		return
+	}
+
+	c.conn.Close()
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }

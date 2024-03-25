@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	//"os"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
@@ -107,6 +109,7 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	bet := common.CreateBet()
+	client := common.NewClient(clientConfig, bet)
 	client.StartClientLoop()
 }

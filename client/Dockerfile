@@ -7,6 +7,9 @@ FROM golang:1.17 AS builder
 # we are adding a very specific label to the image to then find these kind of images and delete them
 LABEL intermediateStageToBeDeleted=true
 
+# Install unzip
+#RUN apt-get update && apt-get install -y unzip
+
 RUN mkdir -p /build
 WORKDIR /build/
 COPY . .
@@ -16,5 +19,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod vendor -o bin/client github.com/7574-
 
 FROM busybox:latest
 COPY --from=builder /build/bin/client /client
-COPY ./client/config/config.yaml /config/config.yaml
+COPY ./client/data/config.yaml /config/config.yaml
+
+# Copy the dataset into the container and unzip it
+#COPY ../.data/dataset.zip /data/dataset.zip
+#RUN unzip /data/dataset.zip -d /data
+
 ENTRYPOINT ["/bin/sh"]
