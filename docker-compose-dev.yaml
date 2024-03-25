@@ -17,6 +17,8 @@ services:
     image: client:latest
     networks:
     - testing_net
+    volumes:
+    - ./client/config:/config
   client2:
     container_name: client2
     depends_on:
@@ -28,6 +30,8 @@ services:
     image: client:latest
     networks:
     - testing_net
+    volumes:
+    - ./client/config:/config
   server:
     container_name: server
     entrypoint: python3 /main.py
@@ -37,4 +41,6 @@ services:
     image: server:latest
     networks:
     - testing_net
+    volumes:
+    - ./server/config:/config
 version: '3.9'

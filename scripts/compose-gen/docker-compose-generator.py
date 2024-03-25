@@ -15,7 +15,8 @@ docker_compose = {
             'entrypoint': 'python3 /main.py',
             'environment': [
                 'PYTHONUNBUFFERED=1', 'LOGGING_LEVEL=DEBUG'],
-            'networks': ['testing_net']
+            'networks': ['testing_net'],
+            'volumes': ['./server/config:/config']
         },
     },
     'networks': {
@@ -47,7 +48,8 @@ def main():
             'entrypoint': '/client',
             'environment': [f'CLI_ID={id+1}', 'CLI_LOG_LEVEL=DEBUG'],
             'networks': ['testing_net'],
-            'depends_on': ['server']
+            'depends_on': ['server'],
+            'volumes': ['./client/config:/config']
         }
 
     with open('docker-compose-dev.yaml', 'w') as file:
