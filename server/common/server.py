@@ -33,11 +33,14 @@ class Server:
             try:
                 client_sock = self.__accept_new_connection()
                 self.__handle_client_connection(client_sock)
-            except socket.timeout:
+            except OSError:
                 continue
 
+        # In case the client_sock wasn't closed because of the exception
+        client_sock.close()
         self._server_socket.close()
         logging.info(f'action: server_finished | result: success')
+        
 
     def __handle_client_connection(self, client_sock):
         """
@@ -99,4 +102,5 @@ class Server:
         By setting self._stop_server to False, the server will continue with the iteration
         it was working, but it will be his last one before stopping gracefully. 
         """
+        self._server_socket.shutdown(socket.SHUT_RDWR)
         self._stop_server = True
