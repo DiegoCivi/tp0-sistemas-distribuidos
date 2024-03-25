@@ -1,6 +1,6 @@
 import csv
 import datetime
-from common.communication import read_socket, write_socket
+from common.communication import read_socket, write_socket, sendEOF
 import logging
 
 """ Bets storage location. """
@@ -143,6 +143,10 @@ def handle_client(agency, client_sock, send_EOF, rec_winner, sem):
     winners_quantity = 0
     while winner_doc != "EOF":
         winner_doc = rec_winner.recv()
+        if winner_doc == "EOF":
+            sendEOF(client_sock)
+            continue
+
         err = write_socket(client_sock, winner_doc)
         if err is not None:
             logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')

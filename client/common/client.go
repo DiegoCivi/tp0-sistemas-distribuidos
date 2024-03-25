@@ -81,7 +81,6 @@ func (c *Client) createClientSocket() error {
 }
 
 func sendBets(reader *bufio.Reader, conn net.Conn, id string, file *os.File) error {
-	log.Infof("Entro a sendBets")
 	// Channel to receive SIGTERM signal
 	signal_chan := make(chan os.Signal, 1)
 	signal.Notify(signal_chan, syscall.SIGTERM)
@@ -132,7 +131,6 @@ loop:
 		batch = append(batch, []byte(SEPARATOR)...)
 		bets_in_msg += 1
 	}
-	log.Infof("TERMINO SENDBETS")
 	return nil
 }
 
