@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	//"os"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -107,6 +108,15 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	// TO-DO: Remove this
+	// os.Setenv("NAME", "Santiago Lionel")
+    // os.Setenv("SURNAME", "Lorca")
+    // os.Setenv("ID", "30904465")
+    // os.Setenv("BIRTH", "1999-03-17")
+    // os.Setenv("NUMBER", "7574")
+
+
+	bet := common.CreateBet()
+	client := common.NewClient(clientConfig, bet)
 	client.StartClientLoop()
 }

@@ -1,6 +1,11 @@
 import socket
 import logging
 import signal
+import time
+from common import communication
+from common.utils import store_bets
+
+HEADER_LENGHT = 4
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -44,17 +49,37 @@ class Server:
         If a problem arises in the communication with the client, the
         client socket will also be closed
         """
-        try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
-            addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
-        except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
-        finally:
+        addr = client_sock.getpeername()
+
+        # Read message
+        bet_msg, err = communication.read_socket(client_sock)
+        if err is not None:
+            logging.error(f'action: read_socket | result: fail | ip: {addr[0]} | error: {err}')
+            return
+
+        # Deserialize message
+        bet, err = communication.deserialize(bet_msg)
+        if err is not None:
+            logging.error(f'action: deserialize | result: fail | ip: {addr[0]} | error: {err}')
             client_sock.close()
+            return
+
+        # Store the bet
+        store_bets([bet])
+        logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+
+        # Send message back
+        msg = f'ACK/{bet.agency}/{bet.number}'
+        err = communication.write_socket(client_sock, msg)
+        if err is not None:
+            logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')
+            client_sock.close()
+            return
+        
+
+        client_sock.close()
+
+        
 
     def __accept_new_connection(self):
         """

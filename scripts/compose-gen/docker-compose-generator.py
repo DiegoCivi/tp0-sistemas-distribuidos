@@ -30,7 +30,7 @@ docker_compose = {
 }
 
 def main():
-    if len(sys.argv) > ARGS_QUANTITY:
+    if len(sys.argv) != ARGS_QUANTITY:
         print(f"Only one argument needed. Received {len(sys.argv) - INDEX_DIFFERENCE} arguments.")
         return 1
     
@@ -55,4 +55,5 @@ def main():
     with open('docker-compose-dev.yaml', 'w') as file:
         yaml.dump(docker_compose, file, default_flow_style=False)
 
+    return 0
 main()
