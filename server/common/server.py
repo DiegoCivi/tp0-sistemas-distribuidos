@@ -1,6 +1,6 @@
 import socket
 import logging
-
+import signal
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -8,6 +8,12 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+
+        # Boolean to stop the server gracefully
+        self._stop_server = False 
+
+        # Declare the SIGTERM handler
+        signal.signal(signal.SIGTERM, self.__exit_gracefully)
 
     def run(self):
         """
@@ -18,11 +24,18 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        # TODO: Modify this program to handle signal to graceful shutdown
-        # the server
-        while True:
-            client_sock = self.__accept_new_connection()
-            self.__handle_client_connection(client_sock)
+        while not self._stop_server:
+            try:
+                client_sock = self.__accept_new_connection()
+                self.__handle_client_connection(client_sock)
+            except OSError:
+                continue
+
+        # In case the client_sock wasn't closed because of the exception
+        client_sock.close()
+        self._server_socket.close()
+        logging.info(f'action: server_finished | result: success')
+        
 
     def __handle_client_connection(self, client_sock):
         """
@@ -56,3 +69,13 @@ class Server:
         c, addr = self._server_socket.accept()
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c
+
+    def __exit_gracefully(self, *args):
+        """
+        Handles SIGTERM
+
+        By setting self._stop_server to False, the server will continue with the iteration
+        it was working, but it will be his last one before stopping gracefully. 
+        """
+        self._server_socket.shutdown(socket.SHUT_RDWR)
+        self._stop_server = True
