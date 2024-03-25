@@ -2,11 +2,8 @@ package common
 
 import (
 	"errors"
-	"fmt"
 	"net"
-	"reflect"
 	"strconv"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -33,8 +30,6 @@ func writeSocket(conn net.Conn, msg []byte) error {
 	// Add header
 	header := getHeader(msg, "0")
 	complete_msg := append(header, msg...)
-
-	//log.Infof("EL BATCH A MANDAR ES: %s", complete_msg)
 
 	err := handleShortWrite(conn, complete_msg)
 	if err != nil {
@@ -105,19 +100,4 @@ func closeSocket(conn net.Conn) {
 		log.Infof("action: send_batch | result: fail | error: %v", err)
 	}
 	conn.Close()
-}
-
-// Serializes the clients bet into a string by iterating over the Bet fields
-func (c *Client) serialize() string {
-	msg := c.config.ID + "/"
-	v := reflect.ValueOf(c.bet)
-
-	for i := 0; i < v.NumField(); i++ {
-		val := v.Field(i).Interface()
-		msg += fmt.Sprintf("%s/", val)
-	}
-
-	msg = strings.TrimSuffix(msg, "/")
-
-	return msg
 }

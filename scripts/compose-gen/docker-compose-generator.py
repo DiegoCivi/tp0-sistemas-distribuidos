@@ -16,7 +16,7 @@ docker_compose = {
             'environment': [
                 'PYTHONUNBUFFERED=1', 'LOGGING_LEVEL=DEBUG'],
             'networks': ['testing_net'],
-            'volumes': ['server_config:/config']
+            'volumes': ['./server/config:/config']
         },
     },
     'networks': {
@@ -26,10 +26,6 @@ docker_compose = {
                 'config': [{'subnet': '172.25.125.0/24'}]
             }
         }
-    },
-    'volumes': {
-        'server_config': None,
-        'client_config': None
     }
 }
 
