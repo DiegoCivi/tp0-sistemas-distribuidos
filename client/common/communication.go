@@ -4,8 +4,6 @@ import (
 	"errors"
 	"net"
 	"strconv"
-
-	//log "github.com/sirupsen/logrus"
 )
 
 // The header is HEADER_LENGTH long, but MSG_SIZE_LENGTH bytes are for the part of the header that
@@ -30,8 +28,6 @@ func writeSocket(conn net.Conn, msg []byte) error {
 	// Add header
 	header := getHeader(msg, "0")
 	complete_msg := append(header, msg...)
-
-	//log.Infof("Se va a mandar un batch")
 
 	err := handleShortWrite(conn, complete_msg)
 	if err != nil {
@@ -94,6 +90,7 @@ func handleShortRead(conn net.Conn, bytes_to_read int) (string, error) {
 	return msg, nil
 }
 
+// Sends a short meesage to the client. Only the header with the end_flag set to True
 func sendEOF(conn net.Conn) error {
 	// Send the header with the end flag set on 1
 	header := getHeader([]byte(""), "1")

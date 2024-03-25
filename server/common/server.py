@@ -25,6 +25,12 @@ class Server:
         signal.signal(signal.SIGTERM, self.__exit_gracefully)
 
     def accept_clients(self):
+        """
+        For each client accepted, a new process is created.
+        Pipes are used to communicate with them
+        rec_EOF and send_EOF pipe are for the server to know when each of clients finished sending their data.
+        rec_winner and send_winner are for the "father" process to communicate the others so they can send it to the client.
+        """
         clients_accepted = 0
         sem = Semaphore()
         rec_EOF, send_EOF = Pipe(False)
@@ -35,27 +41,24 @@ class Server:
                 p = Process(target=handle_client, args=(agency,client_sock, send_EOF, rec_winner, sem,))
                 p.start()
             except OSError as e:
-                # In case the client_sock wasn't closed because of the exception
-                raise Exception("FALTA VER COMO CERRAR LOS PROCESOS Y LOS SOCKETS DE ADENTRO") # TODO: ver como se matan los procesos y los pipes!!!!
                 self._server_socket.close()
-                return None, Exception("SIGTERM RECEIVED")
+                rec_EOF.close()
+                send_EOF.close()
+                return None, None, Exception("SIGTERM RECEIVED")
 
-            self.clients[int(agency)] = (send_winner, p)
+            self.clients[int(agency)] = (send_winner, p, rec_winner, client_sock)
             clients_accepted += 1
 
-        return rec_EOF, None
+        return rec_EOF, send_EOF, None
 
     def run(self):
         """
-        Dummy Server loop
-
-        Server that accept a new connections and establishes a
-        communication with a client. After client with communucation
-        finishes, servers starts to accept new connections again
+        Responsible for the whole logic of the server.
         """
-        rec_EOF, err = self.accept_clients()
+        rec_EOF, send_EOF, err = self.accept_clients()
         if err is not None:
             logging.error(f'action: accept_clients | result: fail | error: {err}')
+            return
         
         # Wait till all the clients finished sending the bets
         EOF_received = 0
@@ -63,6 +66,7 @@ class Server:
             rec_EOF.recv()
             EOF_received += 1
         rec_EOF.close()
+        send_EOF.close()
 
         # Look for winners and send them to their corresponding process
         self.start_lottery()
@@ -72,12 +76,12 @@ class Server:
 
     def start_lottery(self):
         """
-        For each winner found, a message with the document is sent to the corresponding agency.
-        Afeter thath, we notify the agencys there are no more winners to send.
+        For each winner found, a message with the document is sent to the corresponding process that handles the agency.
         """
-
         for bet in load_bets():
-            if has_won(bet):
+            if self._stop_server:
+                return
+            elif has_won(bet):
                 send_winner = self.clients[bet.agency][0]
                 send_winner.send(bet.document)      
 
@@ -100,7 +104,11 @@ class Server:
         return agency, c
         
     def __close_clients(self):
-        for (send_winner, process) in self.clients.values():
+        """
+        Close the las resources. The rec_winner and the client_sock
+        are close inside the other processes.
+        """
+        for (send_winner, process, _, _) in self.clients.values():
             send_winner.send("EOF")
             send_winner.close()
             process.join()
@@ -110,9 +118,15 @@ class Server:
     def __exit_gracefully(self, *args):
         """
         Handles SIGTERM
-
-        By setting self._stop_server to False, the server will continue with the iteration
-        it was working, but it will be his last one before stopping gracefully. 
         """
+        for (send_winner, p, rec_winner, client_sock) in self.clients.values():
+            # Close pipes
+            send_winner.close()
+            rec_winner.close()
+            # Close socket
+            client_sock.close()
+            # End process
+            p.close()
+
         self._server_socket.shutdown(socket.SHUT_RDWR)
         self._stop_server = True

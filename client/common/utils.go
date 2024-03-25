@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Sends only one batch and waits for tha ack
 func sendBatch(conn net.Conn, batch []byte, id string) error {
 	// Send batch to the server
 	err := writeSocket(conn, batch)
@@ -34,6 +35,7 @@ func sendBatch(conn net.Conn, batch []byte, id string) error {
 	return nil
 }
 
+// Returns a Reader for the data file
 func getReader(id string) (*bufio.Reader, *os.File, error) {
 	file_path := "./data/agency-" + id + ".csv"
 
@@ -47,6 +49,8 @@ func getReader(id string) (*bufio.Reader, *os.File, error) {
 	return reader, file, nil
 }
 
+// Responsible for logging and returning the corresponding things
+// for each error that can occur while handling with a file.
 func handleFileErrors(err error, conn net.Conn, id string, batch []byte) bool {
 	if err != io.EOF { // Handle any errors other than EOF 
 		log.Errorf("action: read_line | result: fail | client_id: %v | error: %v", id, err)

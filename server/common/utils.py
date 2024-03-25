@@ -90,11 +90,13 @@ def load_bets() -> list[Bet]: # type: ignore
         for row in reader:
             yield Bet(row[0], row[1], row[2], row[3], row[4], row[5])
 
+"""
+Reads from the socket, deserializes de message, 
+stores the bets and acknowledges the message to the client
+"""
 def handle_message(client_sock, addr, agency, sem):
     # Read message
-    #logging.info(f"Se va a leer un mensaje de la agencia: {agency}")
     msg, err = read_socket(client_sock)
-    #logging.info(f"Se leyo un mensaje de la agencia: {agency} mensaje de largo: {len(msg)}")
     if err is not None:
         logging.error(f'action: read_socket | result: fail | ip: {addr[0]} | error: {err}')
         client_sock.close()
@@ -102,19 +104,18 @@ def handle_message(client_sock, addr, agency, sem):
     elif msg == "EOF":
         logging.info(f'action: finish_loop | result: success | ip: {addr[0]}')
         return True, None
-    #logging.info(f"Se va a des-serializar un mensaje de la agencia: {agency}")
+
     # Deserialize message
     bets, err = deserialize(msg, agency)
     if err is not None:
         logging.error(f'action: deserialize | result: fail | ip: {addr[0]} | message: {msg} |error: {err}')
         client_sock.close()
         return False, err
-    #logging.info(f"Se va escribir las apuestas de la agencia: {agency}")
-    sem.acquire()
+
+    sem.acquire() # Binary semaphore
     # Store the bet
     store_bets(bets)
     sem.release()
-    #logging.info(f"Se escribieron las apuestas de la agencia: {agency}")
 
     # Send ack
     msg = f'ACK'
@@ -126,10 +127,12 @@ def handle_message(client_sock, addr, agency, sem):
     
     return False, None
 
+"""
+Responsible for the whole logic of handling a client that connected with the server.
+Reads all the clients data, and sends the loterry winners
+"""
 def handle_client(agency, client_sock, send_EOF, rec_winner, sem):
-    #logging.info(f"Soy el proceso de la agencia: {agency}")
     addr = client_sock.getpeername()
-
     eof = False
     while eof != True:
         eof, err = handle_message(client_sock, addr, agency, sem)

@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"errors"
 	"net"
 	"os"
 	"os/signal"
@@ -80,21 +81,18 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-func sendBets(reader *bufio.Reader, conn net.Conn, id string, file *os.File) error {
-	// Channel to receive SIGTERM signal
-	signal_chan := make(chan os.Signal, 1)
-	signal.Notify(signal_chan, syscall.SIGTERM)
-
+// Reads the file line by line, including them in a batch.
+// Then sends the batch to the server and waits for the acknowledment.
+func sendBets(reader *bufio.Reader, conn net.Conn, id string, file *os.File, signal_chan chan os.Signal) error {
 	batch := []byte("")
 	bets_in_msg := 0
-loop:
 	for {
 		select {
 		case <-signal_chan:
 			log.Errorf("action: sigterm_received | result: success | client_id: %v", id)
 			conn.Close()
 			file.Close()
-			break loop
+			return errors.New("SIGTERM")
 		default:
 		}
 
@@ -135,10 +133,17 @@ loop:
 }
 
 // Client reads the socket, receiving the different winners until the server tells to stop reading.
-func readLotteryWinners(conn net.Conn, id string) error {
+func readLotteryWinners(conn net.Conn, id string, signal_chan chan os.Signal) error {
 	winners := 0
 loop:
 	for {
+		select {
+		case <-signal_chan:
+			log.Errorf("action: sigterm_received | result: success | client_id: %v", id)
+			conn.Close()
+			return errors.New("SIGTERM")
+		default:	
+		}
 		_, err := readSocket(conn)
 		if err != nil {
 			if err.Error() == "EOF" {
@@ -157,6 +162,10 @@ loop:
 
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
+	// Channel to receive SIGTERM signal
+	signal_chan := make(chan os.Signal, 1)
+	signal.Notify(signal_chan, syscall.SIGTERM)
+
 	// Create the connection the server in every loop iteration. Send an
 	// Skip the rest if the socket was not created
 	err := c.createClientSocket()
@@ -179,27 +188,33 @@ func (c *Client) StartClientLoop() {
 	}
 
 	// Send all the bets from the file to the server
-	err = sendBets(reader, c.conn, c.config.ID, file)
+	err = sendBets(reader, c.conn, c.config.ID, file, signal_chan)
 	if err != nil {
+		if err.Error() != "SIGTERM" {
+			log.Errorf("action: close_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		}
 		return
 	}
+	file.Close()
 
 	// Send the message with the END-FLAG set to true
 	err = sendEOF(c.conn)
 	if err != nil {
-		log.Errorf("action: close_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		c.conn.Close()
 		return
 	}
 
 	// Read loterry winners
-	err = readLotteryWinners(c.conn, c.config.ID)
+	err = readLotteryWinners(c.conn, c.config.ID, signal_chan)
 	if err != nil {
-		log.Errorf("action: read_lottery_winners | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		if err.Error() != "SIGTERM" {
+			log.Errorf("action: read_lottery_winners | result: fail | client_id: %v | error: %v", c.config.ID, err)
+
+		}
+		c.conn.Close()
 		return
 	}
 
 	c.conn.Close()
-	file.Close()
-
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }

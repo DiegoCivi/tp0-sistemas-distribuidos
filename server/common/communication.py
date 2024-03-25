@@ -77,6 +77,9 @@ def get_header(msg, end_flag):
 
     return header
 
+"""
+Sends a short meesage to the client. Only the header with the end_flag set to True
+"""
 def sendEOF(socket):
     try: 
         header = get_header("", "1")        
