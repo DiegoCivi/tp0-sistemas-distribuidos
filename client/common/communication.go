@@ -1,36 +1,37 @@
 package common
 
 import (
+	"errors"
 	"net"
-	"fmt"
 	"strconv"
-	"reflect"
-	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
-const (
-    READ_BUF_SIZE  = 1024
-    WRITE_BUF_SIZE = 1024
-	HEADER_LENGTH = 4
-)
+// The header is HEADER_LENGTH long, but MSG_SIZE_LENGTH bytes are for the part of the header that
+// tell how long in bytes is the message. One byte will occupy the end_flag in the header.
+const HEADER_LENGTH = 5
+const MSG_SIZE_LENGTH = 4
+
 
 // Called by writeSocket(). It returns the protocols header for a message.
-func getHeader(msg string) string {
-	msg_len := strconv.Itoa(len(msg))
-	msg_len_bytes := len(msg_len)
-	for i := 0; i < HEADER_LENGTH - msg_len_bytes; i++ {
-		msg_len = "0" + msg_len
+func getHeader(msg []byte, end_flag string) []byte {
+	header := strconv.Itoa(len(msg))
+	msg_len_bytes := len(header)
+	for i := 0; i < MSG_SIZE_LENGTH - msg_len_bytes; i++ {
+		header = "0" + header
 	}
-	return msg_len
+	header += end_flag
+	return []byte(header)
 }
 
 // Writes the message into the received socket
-func writeSocket(conn net.Conn, msg string) error {
+func writeSocket(conn net.Conn, msg []byte) error {
 	// Add header
-	header := getHeader(msg)
-	complete_msg := header + msg
+	header := getHeader(msg, "0")
+	complete_msg := append(header, msg...)
 
-	err := handleShortWrite(conn, complete_msg, len(complete_msg))
+	err := handleShortWrite(conn, complete_msg)
 	if err != nil {
 		return err
 	}
@@ -39,11 +40,12 @@ func writeSocket(conn net.Conn, msg string) error {
 
 // Called by writeSocket(). It makes sure that if a short-write happens,
 // the rest of the message is also sent.
-func handleShortWrite(conn net.Conn, msg string, bytes_to_write int) error {
+func handleShortWrite(conn net.Conn, msg []byte) error {
 	// Send serialized message to server, handling short read
+	bytes_to_write := len(msg)
 	bytes_wrote := 0
 	for bytes_wrote < bytes_to_write {
-		nbytes, err := conn.Write([]byte(msg[bytes_wrote:]))
+		nbytes, err := conn.Write(msg[bytes_wrote:])
 		if err != nil {
 			return err
 		}
@@ -63,7 +65,11 @@ func readSocket(conn net.Conn) (string, error) {
 	}
 
 	// Read message
-	msg_len, _ := strconv.Atoi(header)
+	msg_len, _ := strconv.Atoi(header[:len(header) - 1])
+	end_flag := string(header[len(header) - 1])
+	if end_flag == "1" {
+		return "", errors.New("EOF")
+	}
 	msg, err := handleShortRead(conn, msg_len)
 	
 	return msg, err
@@ -86,17 +92,12 @@ func handleShortRead(conn net.Conn, bytes_to_read int) (string, error) {
 	return msg, nil
 }
 
-// Serializes the clients bet into a string by iterating over the Bet fields
-func (c *Client) serialize() string {
-	msg := c.config.ID + "/"
-	v := reflect.ValueOf(c.bet)
-
-	for i := 0; i < v.NumField(); i++ {
-		val := v.Field(i).Interface()
-		msg += fmt.Sprintf("%s/", val)
+func closeSocket(conn net.Conn) {
+	// Send the header with the end flag set on 1
+	header := getHeader([]byte(""), "1")
+	err := handleShortWrite(conn, header)
+	if err != nil {
+		log.Infof("action: send_batch | result: fail | error: %v", err)
 	}
-
-	msg = strings.TrimSuffix(msg, "/")
-
-	return msg
+	conn.Close()
 }

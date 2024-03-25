@@ -49,7 +49,7 @@ def main():
             'environment': [f'CLI_ID={id+1}', 'CLI_LOG_LEVEL=DEBUG'],
             'networks': ['testing_net'],
             'depends_on': ['server'],
-            'volumes': ['./client/config:/config']
+            'volumes': ['./client/data:/data']
         }
 
     with open('docker-compose-dev.yaml', 'w') as file:

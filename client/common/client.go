@@ -3,18 +3,26 @@ package common
 import (
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	BATCH_MAX_SIZE = 8000
+	BETS_IN_BATCH = 150
+	SEPARATOR = "/"
+)
+
 // Contains the info about the clients bet
 type Bet struct {
-	Name		string
-	Surname		string
-	Id			string
-	Birth		string
-	Number		string
+	Name    string
+	Surname string
+	Id      string
+	Birth   string
+	Number  string
 }
 
 // ClientConfig Configuration used by the client
@@ -27,19 +35,19 @@ type ClientConfig struct {
 
 // Client Entity that encapsulates how
 type Client struct {
-	config 		ClientConfig
-	conn   		net.Conn
-	bet			Bet	
+	config ClientConfig
+	conn   net.Conn
+	bet    Bet
 }
 
 // Creates a Bet from the env variables
 func CreateBet() Bet {
 	bet := Bet{
-		Name: os.Getenv("NAME"),
+		Name:    os.Getenv("NAME"),
 		Surname: os.Getenv("SURNAME"),
-		Id: os.Getenv("ID"),
-		Birth: os.Getenv("BIRTH"),
-		Number: os.Getenv("NUMBER"),
+		Id:      os.Getenv("ID"),
+		Birth:   os.Getenv("BIRTH"),
+		Number:  os.Getenv("NUMBER"),
 	}
 	return bet
 }
@@ -47,9 +55,9 @@ func CreateBet() Bet {
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
 func NewClient(config ClientConfig, bet Bet) *Client {
-	client := &Client {
+	client := &Client{
 		config: config,
-		bet: bet,
+		bet:    bet,
 	}
 	return client
 }
@@ -61,7 +69,7 @@ func (c *Client) createClientSocket() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
 		log.Fatalf(
-	        "action: connect | result: fail | client_id: %v | error: %v",
+			"action: connect | result: fail | client_id: %v | error: %v",
 			c.config.ID,
 			err,
 		)
@@ -71,49 +79,83 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 	// Create the connection the server in every loop iteration. Send an
-	// Skip the rest if the socket was not created 
+	// Skip the rest if the socket was not created
 	err := c.createClientSocket()
 	if err != nil {
-		log.Errorf("action: create_socket | result: fail | client_id: %v | error: %v",
-            c.config.ID,
-			err,
-		)
-		return
-	} 
-	
-	// Send Bet to the server
-	msg := c.serialize()
-	err = writeSocket(c.conn, msg)
-	if err != nil {
-		log.Errorf("action: send_message | result: fail | client_id: %v | error: %v",
-            c.config.ID,
-			err,
-		)
-		c.conn.Close()
-		return
-	} 
-
-	// Read Bet ack from server
-	bet_msg, err := readSocket(c.conn)
-	if err != nil {
-		log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-            c.config.ID,
-			err,
-		)
-		c.conn.Close()
+		log.Errorf("action: create_socket | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
-	
-	log.Infof("action: receive_message | result: success | client_id: %v | msg: %s",
-		c.config.ID,
-		bet_msg,
-	)
 
-	c.conn.Close()
+	// Channel to receive SIGTERM signal
+	signal_chan := make(chan os.Signal, 1)
+	signal.Notify(signal_chan, syscall.SIGTERM)
+
+	// Send the client id
+	err = writeSocket(c.conn, []byte(c.config.ID))
+	if err != nil {
+		log.Errorf("action: send_ID | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	reader, file, err := getReader(c.config.ID)
+	if err != nil {
+		log.Errorf("action: open_file | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	batch := []byte("")
+	bets_in_msg := 0
+loop:
+	for {
+		select {
+		case <-signal_chan:
+			log.Errorf("action: sigterm_received | result: success | client_id: %v | error: %v", c.config.ID, err)
+			closeSocket(c.conn)
+			file.Close()
+			break loop
+		default:
+		}
+
+		line, isPrefix, err := reader.ReadLine() // TODO: Use the isPrefix
+		if err != nil {
+			finish_conn := handleFileErrors(err, c.conn, c.config.ID, batch)
+			if finish_conn {
+				closeSocket(c.conn)
+				file.Close()
+				return
+			}
+			break
+		} else if isPrefix { // If isPrefix is set, the line didnt enter so we have to read again
+			batch = append(batch, line...)
+			continue
+		}
+
+		// If adding the new line to the batch exceeds its maximum size, 
+		// or there are BETS_IN_BATCH bets in the message are the batch is sent and emptied.
+		if len(line) + len(batch) > BATCH_MAX_SIZE || bets_in_msg == BETS_IN_BATCH {
+			if sendBatch(c.conn, batch, c.config.ID) != nil {
+				log.Errorf("action: send_batch | result: fail | client_id: %v | error: %v", c.config.ID, err)
+				closeSocket(c.conn)
+				file.Close()
+				return
+			}
+			batch = []byte("")
+			bets_in_msg = 0
+		}
+
+		// The read line is appended to the match, with a separator to diferentiate lines
+		// The last byte will represent a '/'
+		batch = append(batch, line...)
+		batch = append(batch, []byte(SEPARATOR)...)
+		bets_in_msg += 1
+	}
+	
+	// Send the message with the END-FLAG set to true
+	closeSocket(c.conn)
+	file.Close()
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }

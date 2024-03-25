@@ -14,16 +14,11 @@ services:
     environment:
     - CLI_ID=1
     - CLI_LOG_LEVEL=DEBUG
-    - NAME=Santiago Lionel
-    - SURNAME=Lorca
-    - ID=30904465
-    - BIRTH=1999-03-17
-    - NUMBER=7574
     image: client:latest
     networks:
     - testing_net
     volumes:
-    - ./client/config:/config
+    - ./client/data:/data
   client2:
     container_name: client2
     depends_on:
@@ -32,16 +27,11 @@ services:
     environment:
     - CLI_ID=2
     - CLI_LOG_LEVEL=DEBUG
-    - NAME=Diego
-    - SURNAME=Civini
-    - ID=111111111
-    - BIRTH=2001-10-02
-    - NUMBER=7580
     image: client:latest
     networks:
     - testing_net
     volumes:
-    - ./client/config:/config
+    - ./client/data:/data
   client3:
     container_name: client3
     depends_on:
@@ -50,16 +40,11 @@ services:
     environment:
     - CLI_ID=3
     - CLI_LOG_LEVEL=DEBUG
-    - NAME=Lionel
-    - SURNAME=Messi
-    - ID=2222222
-    - BIRTH=1900-04-12
-    - NUMBER=2345
     image: client:latest
     networks:
     - testing_net
     volumes:
-    - ./client/config:/config
+    - ./client/data:/data
   client4:
     container_name: client4
     depends_on:
@@ -68,16 +53,11 @@ services:
     environment:
     - CLI_ID=4
     - CLI_LOG_LEVEL=DEBUG
-    - NAME=Facundo
-    - SURNAME=Campazzo
-    - ID=1232412
-    - BIRTH=1945-04-09
-    - NUMBER=7222
     image: client:latest
     networks:
     - testing_net
     volumes:
-    - ./client/config:/config
+    - ./client/data:/data
   client5:
     container_name: client5
     depends_on:
@@ -86,16 +66,11 @@ services:
     environment:
     - CLI_ID=5
     - CLI_LOG_LEVEL=DEBUG
-    - NAME=Mauro
-    - SURNAME=Lombardo
-    - ID=89298493
-    - BIRTH=1986-01-10
-    - NUMBER=6789
     image: client:latest
     networks:
     - testing_net
     volumes:
-    - ./client/config:/config
+    - ./client/data:/data
   server:
     container_name: server
     entrypoint: python3 /main.py

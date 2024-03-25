@@ -30,3 +30,13 @@ Se crearon los archivos _communication.py_ y _communication.go_ en donde encontr
 El protocolo es muy simple. Se usa un header que siempre tendra un largo de 4 bytes. En este header se informa la longitud del mensaje. Entonces si tenemos el mensaje "Hola!", el header sera "0005" y el mensaje completo que se envia por el socket sera "0005Hola!". Para evitar un short-write, se envia el mensaje y se va contando cuantos bytes se escribieron. Si no se escribieron todos los bytes, se sigue enviado desde el byte que no se pudo escribir en el socket. Del lado del lector, este sabe que siempre primero tiene que leer 4 bytes, asi consigue el header y sabe cuantos bytes mas tiene que leer para conseguir el mensaje completo. No para de hacer intentos de leer el socket hasta que no se haya leido la cantidad de bytes indicada por el header.
 
 Por el lado de la serializacion y des-serializacion, se juntan todos los parametros en una sola string separados por un "/" y una vez que se lee todo ese mensaje se hace un split para conseguir los parametros separados.
+
+## Ejercicio N° 6
+
+En este ejercicio, se necesito agregar un byte al header. Este byte que lo llamamos end_flag, se usa para avisarle al lector que ya se termino con el envio de datos y que puede dejar de leer en el loop y cerrar la conexion.
+
+Ademas se cambiaron las funciones de escritura del protocolo. Esto se hizo porque en el ejercicio 5 no se tomo en cuenta el caso de por ejemplo usar letras con tilde, las cuales ocupan 2 bytes en vez de uno y generaban problemas en el protocolo, ahora se trabaja directamente con bytes y no con las strings.
+
+Se usa ReadLine para leer linea por line eel archivo y se lo va a agregando a un batch el cual tiene limite de bets y de bytes. Una vez que se envio todo el archivo se termina la conexion. Del lado del server, este por cada batch que recibe, lo separa en bets y las guarda usando _store_bets()_.
+
+**IMPORTANTE:** Si lo corren, es necesario que en la carpeta _./client/data_ se haga unzip a la carpeta _dataset.zip_. Ahora el docker volume es en esa carpeta y no en la carpeta _./client/config_.
