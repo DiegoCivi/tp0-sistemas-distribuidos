@@ -1,13 +1,14 @@
 import socket
 import logging
 import signal
-import time
+from multiprocessing import Process, Pipe, Semaphore
 from common import communication
-from common.utils import store_bets, load_bets, has_won
+from common.utils import store_bets, load_bets, has_won, handle_client
 
 HEADER_LENGHT = 4
 
 class Server:
+
     def __init__(self, port, listen_backlog):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -23,6 +24,27 @@ class Server:
         # Declare the SIGTERM handler
         signal.signal(signal.SIGTERM, self.__exit_gracefully)
 
+    def accept_clients(self):
+        clients_accepted = 0
+        sem = Semaphore()
+        rec_EOF, send_EOF = Pipe(False)
+        while not self._stop_server and clients_accepted != 5:
+            try:
+                agency, client_sock = self.__accept_new_connection()
+                rec_winner, send_winner = Pipe(False)
+                p = Process(target=handle_client, args=(agency,client_sock, send_EOF, rec_winner, sem,))
+                p.start()
+            except OSError as e:
+                # In case the client_sock wasn't closed because of the exception
+                raise Exception("FALTA VER COMO CERRAR LOS PROCESOS Y LOS SOCKETS DE ADENTRO") # TODO: ver como se matan los procesos y los pipes!!!!
+                self._server_socket.close()
+                return None, Exception("SIGTERM RECEIVED")
+
+            self.clients[int(agency)] = (send_winner, p)
+            clients_accepted += 1
+
+        return rec_EOF, None
+
     def run(self):
         """
         Dummy Server loop
@@ -31,30 +53,22 @@ class Server:
         communication with a client. After client with communucation
         finishes, servers starts to accept new connections again
         """
-        clients_accepted = 0
-        while not self._stop_server and clients_accepted != 5:
-            try:
-                agency, client_sock = self.__accept_new_connection()
-                self.__handle_client_connection(client_sock, agency)
-            except OSError as e:
-                # In case the client_sock wasn't closed because of the exception
-                client_sock.close()
-                self.__close_clients_socks()
-                self._server_socket.close()
-                continue
+        rec_EOF, err = self.accept_clients()
+        if err is not None:
+            logging.error(f'action: accept_clients | result: fail | error: {err}')
+        
+        # Wait till all the clients finished sending the bets
+        EOF_received = 0
+        while EOF_received != len(self.clients):
+            rec_EOF.recv()
+            EOF_received += 1
+        rec_EOF.close()
 
-            self.clients[int(agency)] = client_sock
-            clients_accepted += 1
-
-        if self._stop_server:
-            return
-
+        # Look for winners and send them to their corresponding process
+        self.start_lottery()
         logging.info('action: sorteo | result: success')
 
-        self.start_lottery()
-
-        self.__close_clients_socks()
-        logging.info('action: server_finished | result: success')
+        self.__close_clients()
 
     def start_lottery(self):
         """
@@ -64,56 +78,8 @@ class Server:
 
         for bet in load_bets():
             if has_won(bet):
-                client_sock = self.clients[bet.agency]
-                err = communication.write_socket(client_sock, bet.document)
-                if err != None:
-                    logging.error(f"action: send_winner | result: fail | error: {err}")
-                    return        
-
-        for sock in self.clients.values():
-            communication.sendEOF(sock)
-
-    def __handle_client_connection(self, client_sock, agency):
-        """
-        Read message from a specific client socket and closes the socket
-
-        If a problem arises in the communication with the client, the
-        client socket will also be closed
-        """
-        addr = client_sock.getpeername()
-
-        eof = False
-        while eof != True:
-            # Read message
-            msg, err = communication.read_socket(client_sock)
-            if err is not None:
-                logging.error(f'action: read_socket | result: fail | ip: {addr[0]} | error: {err}')
-                client_sock.close()
-                return
-            elif msg == "EOF":
-                logging.info(f'action: finish_loop | result: success | ip: {addr[0]}')
-                eof = True
-                continue
-                
-
-            # Deserialize message
-            bets, err = communication.deserialize(msg, agency)
-            if err is not None:
-                logging.error(f'action: deserialize | result: fail | ip: {addr[0]} | message: {msg} |error: {err}')
-                client_sock.close()
-                return
-
-            # Store the bet
-            store_bets(bets)
-
-            # Send ack
-            msg = f'ACK'
-            err = communication.write_socket(client_sock, msg)
-            if err is not None:
-                logging.error(f'action: send_ack | result: fail | ip: {addr[0]} | error: {err}')
-                client_sock.close()
-                return
-        
+                send_winner = self.clients[bet.agency][0]
+                send_winner.send(bet.document)      
 
     def __accept_new_connection(self):
         """
@@ -133,9 +99,12 @@ class Server:
 
         return agency, c
         
-    def __close_clients_socks(self):
-        for sock in self.clients.values():
-            sock.close()
+    def __close_clients(self):
+        for (send_winner, process) in self.clients.values():
+            send_winner.send("EOF")
+            send_winner.close()
+            process.join()
+            process.close()
 
 
     def __exit_gracefully(self, *args):

@@ -20,7 +20,7 @@ func sendBatch(conn net.Conn, batch []byte, id string) error {
 
 		return err
 	}
-
+	//log.Infof("Se pudo mandar el batch, ahora se va a leer")
 	// Read ack from server
 	_, err = readSocket(conn)
 	if err != nil {
@@ -30,6 +30,7 @@ func sendBatch(conn net.Conn, batch []byte, id string) error {
 		)
 		return err
 	}
+	//log.Infof("SE PUDO LEER")
 	return nil
 }
 
